@@ -250,7 +250,13 @@ export function SessionProvider({ children }: SessionProviderProps) {
 
       if (result.error) {
         const unavailable = players.filter((p) => !p.available).length;
-        const detailedError = `${result.error} (Total: ${players.length}, Available: ${available.length}, Unavailable: ${unavailable}, In pending matches: ${pendingPlayersList.length})`;
+        const { t } = require('react-i18next');
+        const detailedError = t('court.needEligiblePlayers', {
+          total: players.length,
+          available: available.length,
+          unavailable,
+          pending: pendingPlayersList.length
+        });
         setError(detailedError);
         throw new Error(detailedError);
       }

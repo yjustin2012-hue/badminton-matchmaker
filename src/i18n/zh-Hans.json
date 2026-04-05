@@ -1,3 +1,11 @@
+    "court.needEligiblePlayers": "需要至少4名合格球员。当前有{{available}}人。（总数：{{total}}，可用：{{available}}，不可用：{{unavailable}}，待进行比赛中：{{pending}}）",
+  "rosters.nameEmpty": "名单名称不能为空",
+  "rosters.nameExists": "已存在同名名单",
+  "rosters.failedLoad": "加载名单失败",
+  "rosters.failedCreate": "创建名单失败",
+  "rosters.failedDelete": "删除名单失败",
+  "rosters.failedRename": "重命名单单失败",
+  "rosters.notFound": "未找到名单",
 
 {
   "app.title": "羽毛球配对器",

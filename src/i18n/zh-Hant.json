@@ -1,3 +1,11 @@
+    "court.needEligiblePlayers": "需要至少4名合格球員。目前有{{available}}人。（總數：{{total}}，可用：{{available}}，不可用：{{unavailable}}，待進行比賽中：{{pending}}）",
+  "rosters.nameEmpty": "名單名稱不能為空",
+  "rosters.nameExists": "已存在同名名單",
+  "rosters.failedLoad": "載入名單失敗",
+  "rosters.failedCreate": "建立名單失敗",
+  "rosters.failedDelete": "刪除名單失敗",
+  "rosters.failedRename": "重新命名名單失敗",
+  "rosters.notFound": "找不到名單",
 
 {
   "app.title": "羽毛球配對器",

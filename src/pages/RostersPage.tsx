@@ -31,19 +31,19 @@ export default function RostersPage() {
       setRosters(loaded.sort((a, b) => b.updatedAt - a.updatedAt));
       setError(null);
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to load rosters');
+      setError(err instanceof Error ? err.message : t('rosters.failedLoad'));
     }
   };
 
   const handleCreateRoster = async () => {
     if (!newRosterName.trim()) {
-      setError('Roster name cannot be empty');
+      setError(t('rosters.nameEmpty'));
       return;
     }
 
     // Check for duplicate names
     if (rosters.some((r) => r.name.toLowerCase() === newRosterName.trim().toLowerCase())) {
-      setError('A roster with this name already exists');
+      setError(t('rosters.nameExists'));
       return;
     }
 
@@ -54,7 +54,7 @@ export default function RostersPage() {
       setShowCreateModal(false);
       setError(null);
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to create roster');
+      setError(err instanceof Error ? err.message : t('rosters.failedCreate'));
     }
   };
 
@@ -67,7 +67,7 @@ export default function RostersPage() {
       setSelectedRosterId(null);
       setError(null);
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to delete roster');
+      setError(err instanceof Error ? err.message : t('rosters.failedDelete'));
     }
   };
 
@@ -77,13 +77,13 @@ export default function RostersPage() {
       setError(null);
       alert(t('rosters.loadedSuccess'));
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to load roster');
+      setError(err instanceof Error ? err.message : t('rosters.failedLoad'));
     }
   };
 
   const handleRenameRoster = async (rosterId: string) => {
     if (!editingName.trim()) {
-      setError('Roster name cannot be empty');
+      setError(t('rosters.nameEmpty'));
       return;
     }
 
@@ -94,13 +94,13 @@ export default function RostersPage() {
           r.id !== rosterId && r.name.toLowerCase() === editingName.trim().toLowerCase()
       )
     ) {
-      setError('A roster with this name already exists');
+      setError(t('rosters.nameExists'));
       return;
     }
 
     try {
       const roster = rosters.find((r) => r.id === rosterId);
-      if (!roster) throw new Error('Roster not found');
+      if (!roster) throw new Error(t('rosters.notFound'));
 
       await DB.updatePreset(rosterId, {
         name: editingName.trim(),
@@ -112,7 +112,7 @@ export default function RostersPage() {
       setEditingName('');
       setError(null);
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to rename roster');
+      setError(err instanceof Error ? err.message : t('rosters.failedRename'));
     }
   };
 

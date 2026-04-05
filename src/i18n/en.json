@@ -1,3 +1,11 @@
+    "court.needEligiblePlayers": "Need at least 4 eligible players. Currently have {{available}}. (Total: {{total}}, Available: {{available}}, Unavailable: {{unavailable}}, In pending matches: {{pending}})",
+  "rosters.nameEmpty": "Roster name cannot be empty",
+  "rosters.nameExists": "A roster with this name already exists",
+  "rosters.failedLoad": "Failed to load rosters",
+  "rosters.failedCreate": "Failed to create roster",
+  "rosters.failedDelete": "Failed to delete roster",
+  "rosters.failedRename": "Failed to rename roster",
+  "rosters.notFound": "Roster not found",
 
 {
   "app.title": "Badminton Matchmaker",
