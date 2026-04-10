@@ -6,6 +6,9 @@ export default defineConfig({
   plugins: [
     react(),
     VitePWA({
+      devOptions: {
+        enabled: false, // Disable SW in dev to prevent stale cache issues
+      },
       registerType: 'autoUpdate',
       manifest: {
         name: 'Badminton Matchmaker',
@@ -34,19 +37,7 @@ export default defineConfig({
       },
       workbox: {
         globPatterns: ['**/*.{js,css,html,ico,png,svg}'],
-        runtimeCaching: [
-          {
-            urlPattern: /^https:\/\/fonts\.(googleapis|gstatic)\.com\/.*/i,
-            handler: 'CacheFirst',
-            options: {
-              cacheName: 'google-fonts-cache',
-              expiration: {
-                maxEntries: 10,
-                maxAgeSeconds: 60 * 60 * 24 * 365 // 1 year
-              }
-            }
-          }
-        ]
+        cleanupOutdatedCaches: true
       }
     })
   ],

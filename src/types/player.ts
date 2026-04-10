@@ -12,6 +12,10 @@ export interface Player {
   matchesPlayed: number;
   wins: number;
   losses: number;
+  totalPointsScored: number; // Cumulative points scored across all matches (tiebreaker)
+
+  // Pair preference: player this person wants to be teamed with
+  preferredPartnerId?: string | null;
 
   // For fairness and repetition control
   recentMatchIds: string[]; // Last N match IDs for teammate/opponent analysis

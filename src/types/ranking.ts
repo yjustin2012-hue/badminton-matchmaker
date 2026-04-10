@@ -10,8 +10,9 @@ export interface Ranking {
   wins: number;
   losses: number;
   winPercentage: number; // 0-100, or 0 if no matches yet
+  totalPointsScored: number; // Tiebreaker when win% is equal
   available: boolean;
-  dueUp: boolean; // MVP fairness indicator: true if player has significantly fewer matches than avg
+  dueUp: boolean;
   lastPlayedAt?: number;
 }
 

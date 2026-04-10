@@ -1,4 +1,6 @@
-    "court.needEligiblePlayers": "Need at least 4 eligible players. Currently have {{available}}. (Total: {{total}}, Available: {{available}}, Unavailable: {{unavailable}}, In pending matches: {{pending}})",
+{
+  "court.loadedRosterLabel": "Roster loaded: {{name}}",
+  "court.needEligiblePlayers": "Need at least 4 eligible players. Currently have {{available}}. (Total: {{total}}, Available: {{available}}, Unavailable: {{unavailable}}, In pending matches: {{pending}})",
   "rosters.nameEmpty": "Roster name cannot be empty",
   "rosters.nameExists": "A roster with this name already exists",
   "rosters.failedLoad": "Failed to load rosters",
@@ -6,8 +8,6 @@
   "rosters.failedDelete": "Failed to delete roster",
   "rosters.failedRename": "Failed to rename roster",
   "rosters.notFound": "Roster not found",
-
-{
   "app.title": "Badminton Matchmaker",
   "app.version": "v0.1.0",
   
@@ -49,7 +49,8 @@
   "court.load": "Load",
   "court.close": "Close",
   "court.overwriteTitle": "Update Roster",
-  "court.overwriteButton": "Overwrite",
+  "court.overwriteDesc": "You've loaded \"{{name}}\" and made changes. What would you like to do?",
+  "court.overwriteButton": "Overwrite \"{{name}}\"",
   "court.saveAsNewButton": "Save as New Roster",
   "court.removePlayerConfirm": "Remove this player?",
   "court.deleteMatchConfirm": "Delete this pending match?",
@@ -68,9 +69,15 @@
   "court.failedCompleteMatch": "Failed to complete match",
   "court.failedDeleteMatch": "Failed to delete match",
   "court.failedStartOver": "Failed to start over",
+  "court.failedSaveRoster": "Failed to save roster",
+  "court.failedSetPairPreference": "Failed to set pair preference",
   "court.available": "Available",
   "court.unavailable": "Unavailable",
   "court.doubleClickEdit": "Double-click to edit",
+  "court.loadRosterConfirmTitle": "Load Roster?",
+  "court.loadRosterConfirmDesc": "Loading a new roster will clear all pending matches and reset player stats. Continue?",
+  "court.failedLoadRoster": "Failed to load roster",
+  "court.failedDeleteRoster": "Failed to delete roster",
   
   "rankings.title": "Rankings",
   "rankings.players": "players",
@@ -85,6 +92,7 @@
   "rankings.available": "Available",
   "rankings.unavailable": "Unavailable",
   "rankings.noRankings": "No rankings yet",
+  "rankings.totalPts": "Total Pts",
   "rankings.lowSampleSize": "Low Sample Size",
   "rankings.lowSample": "Low Sample Size",
   "rankings.lowSampleDescription": "These players have fewer than {{count}} matches. Rankings may not be reliable.",
@@ -183,6 +191,8 @@
   "settings.dueUpDescription": "Players are marked \"due-up\" if they've played this many matches fewer than average",
   "settings.allowPendingMatches": "Allow players in pending matches",
   "settings.allowPendingMatchesDesc": "When enabled, players can be selected for new matches even if they're already in a pending match. Useful for advance planning.",
+  "settings.confirmDeleteMatch": "Confirm before deleting a pending match",
+  "settings.confirmDeleteMatchDesc": "When enabled, a confirmation dialog will appear before removing a generated match.",
   "settings.matches": "matches",
   "settings.matchesBelowAverage": "matches below average",
   "settings.matchesBelow": "matches below average",
@@ -203,5 +213,19 @@
   "settings.successThreshold": "Threshold updated",
   
   "error.required": "This field is required",
-  "error.invalid": "Invalid input"
+  "error.invalid": "Invalid input",
+
+  "court.pair": "Pair",
+  "court.pairActive": "Pair ✓",
+  "court.pairTooltipActive": "Paired with {{name}}",
+  "court.pairTooltipNone": "No pair selected",
+  "court.pairModalTitle": "Select partner for {{name}}",
+  "court.pairModalDesc": "This player will be paired on the same team when possible.",
+  "court.pairNoOtherPlayers": "No other players available.",
+  "court.pairPaired": "✓ Paired",
+  "court.pairClear": "Clear Pair",
+  "court.pairClose": "Close",
+  "court.pairOneDirectional": "⚠️ Pairing is one-directional. For mutual pairing, the other player must also select you.",
+
+  "history.snapshotDefaultName": "{{date}}"
 }

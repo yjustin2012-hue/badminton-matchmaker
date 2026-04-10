@@ -7,11 +7,11 @@ import Dexie, { Table } from 'dexie';
 import * as Types from '../types';
 
 export class BadmintonDB extends Dexie {
-  players!: Table<Types.Player>;
-  matches!: Table<Types.Match>;
-  snapshots!: Table<Types.Snapshot>;
-  presets!: Table<Types.Preset>;
-  settings!: Table<Types.Settings>;
+  players!: Table<Types.Player, string>;
+  matches!: Table<Types.Match, string>;
+  snapshots!: Table<Types.Snapshot, string>;
+  presets!: Table<Types.Preset, string>;
+  settings!: Table<Types.Settings, string>;
 
   constructor() {
     super('BadmintonMatchmaker');
@@ -58,6 +58,7 @@ export async function initializeDatabase() {
         minMatchesThreshold: 1,
         duUpBelowAverageThreshold: 1,
         ignorePendingMatchesForGeneration: true,
+        confirmDeletePendingMatch: false,
         createdAt: Date.now(),
         updatedAt: Date.now(),
       };

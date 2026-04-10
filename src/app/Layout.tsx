@@ -6,6 +6,7 @@ import RankingsPage from '../pages/RankingsPage.tsx'
 import HistoryPage from '../pages/HistoryPage.tsx'
 import RostersPage from '../pages/RostersPage.tsx'
 import SettingsPage from '../pages/SettingsPage.tsx'
+import { APP_VERSION, APP_VERSION_DATE } from '../version.ts'
 
 export type TabId = 'court' | 'rankings' | 'history' | 'rosters' | 'settings'
 
@@ -37,6 +38,12 @@ export default function Layout() {
 
   return (
     <div className="flex flex-col h-screen w-screen">
+      {/* Version badge — fixed top-right */}
+      <div className="fixed top-1 right-2 z-40 text-[10px] text-gray-400 select-none pointer-events-none leading-tight text-right">
+        <span>v{APP_VERSION}</span>
+        <br />
+        <span>{APP_VERSION_DATE}</span>
+      </div>
       {/* Main content area */}
       <div className="flex-1 overflow-auto bg-white">
         {activeTab === 'court' && <CourtPage />}

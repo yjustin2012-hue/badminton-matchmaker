@@ -39,6 +39,7 @@ export default function RankingsPage() {
                   <th className="px-6 py-3 text-center font-semibold text-gray-700">{t('rankings.matches')}</th>
                   <th className="px-6 py-3 text-center font-semibold text-gray-700">{t('rankings.winPercent')}</th>
                   <th className="px-6 py-3 text-center font-semibold text-gray-700">{t('rankings.record')}</th>
+                  <th className="px-6 py-3 text-center font-semibold text-gray-700">{t('rankings.totalPts')}</th>
                   <th className="px-6 py-3 text-center font-semibold text-gray-700">{t('rankings.status')}</th>
                 </tr>
               </thead>
@@ -87,6 +88,12 @@ export default function RankingsPage() {
                       </td>
 
                       <td className="px-6 py-3 text-center">
+                        <span className="font-semibold text-gray-700">
+                          {ranking.matchesPlayed === 0 ? '—' : ranking.totalPointsScored}
+                        </span>
+                      </td>
+
+                      <td className="px-6 py-3 text-center">
                         {ranking.dueUp ? (
                           <span className="inline-block px-3 py-1 bg-orange-100 border border-orange-400 rounded-full text-orange-700 font-semibold text-sm">
                             {t('rankings.dueUp')}
@@ -105,7 +112,7 @@ export default function RankingsPage() {
                   ))
                 ) : (
                   <tr>
-                    <td colSpan={6} className="px-6 py-8 text-center text-gray-500">
+                    <td colSpan={7} className="px-6 py-8 text-center text-gray-500">
                       {t('rankings.noRankings')}
                     </td>
                   </tr>

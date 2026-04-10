@@ -14,12 +14,12 @@ export default function RostersPage() {
   const { t } = useTranslation();
   const session = useSessionContext();
   const [rosters, setRosters] = useState<Types.Preset[]>([]);
-  const [showCreateModal, setShowCreateModal] = useState(false);
-  const [newRosterName, setNewRosterName] = useState('');
   const [selectedRosterId, setSelectedRosterId] = useState<string | null>(null);
   const [editingName, setEditingName] = useState('');
   const [editingNameId, setEditingNameId] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [showLoadWarning, setShowLoadWarning] = useState(false);
+  const [pendingLoadRosterId, setPendingLoadRosterId] = useState<string | null>(null);
 
   useEffect(() => {
     loadRosters();
@@ -32,29 +32,6 @@ export default function RostersPage() {
       setError(null);
     } catch (err) {
       setError(err instanceof Error ? err.message : t('rosters.failedLoad'));
-    }
-  };
-
-  const handleCreateRoster = async () => {
-    if (!newRosterName.trim()) {
-      setError(t('rosters.nameEmpty'));
-      return;
-    }
-
-    // Check for duplicate names
-    if (rosters.some((r) => r.name.toLowerCase() === newRosterName.trim().toLowerCase())) {
-      setError(t('rosters.nameExists'));
-      return;
-    }
-
-    try {
-      await session.saveAsPreset(newRosterName);
-      await loadRosters();
-      setNewRosterName('');
-      setShowCreateModal(false);
-      setError(null);
-    } catch (err) {
-      setError(err instanceof Error ? err.message : t('rosters.failedCreate'));
     }
   };
 
@@ -72,10 +49,20 @@ export default function RostersPage() {
   };
 
   const handleLoadRoster = async (rosterId: string) => {
+    setPendingLoadRosterId(rosterId);
+    setShowLoadWarning(true);
+  };
+
+  const handleConfirmLoadRoster = async () => {
+    if (!pendingLoadRosterId) return;
+    
     try {
-      await session.loadPresetPlayers(rosterId);
+      await session.startOver();
+      await session.loadPresetPlayers(pendingLoadRosterId);
       setError(null);
       alert(t('rosters.loadedSuccess'));
+      setShowLoadWarning(false);
+      setPendingLoadRosterId(null);
     } catch (err) {
       setError(err instanceof Error ? err.message : t('rosters.failedLoad'));
     }
@@ -122,18 +109,7 @@ export default function RostersPage() {
     <div className="flex h-full gap-4 p-4 bg-gray-50">
       {/* Rosters List */}
       <div className="flex-1 flex flex-col min-w-0">
-        <div className="flex items-center justify-between mb-4">
-          <h2 className="text-2xl font-bold text-gray-800">{t('nav.rosters')}</h2>
-          <button
-            onClick={() => {
-              setShowCreateModal(true);
-              setError(null);
-            }}
-            className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors font-semibold"
-          >
-            {t('rosters.createNew')}
-          </button>
-        </div>
+        <h2 className="text-2xl font-bold text-gray-800 mb-4">{t('nav.rosters')}</h2>
 
         {/* Info Banner */}
         <div className="mb-4 p-3 bg-blue-50 border border-blue-200 text-blue-700 rounded-lg text-sm">
@@ -282,49 +258,28 @@ export default function RostersPage() {
         </div>
       )}
 
-      {/* Create Roster Modal */}
-      {showCreateModal && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-lg shadow-xl max-w-sm w-full p-6">
-            <h2 className="text-xl font-bold text-gray-800 mb-4">{t('rosters.createNew')}</h2>
+      {/* Load Roster Warning Modal */}
+      {showLoadWarning && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-lg shadow-lg max-w-md w-full p-6 space-y-4">
+            <h3 className="text-xl font-bold text-gray-800">Load Roster?</h3>
+            <p className="text-sm text-gray-600">
+              Loading a new roster will clear all pending matches and reset player stats. Continue?
+            </p>
 
-            {error && (
-              <div className="mb-4 p-3 bg-red-50 border border-red-300 text-red-700 rounded-lg text-sm">
-                {error}
-              </div>
-            )}
-
-            <input
-              type="text"
-              value={newRosterName}
-              onChange={(e) => setNewRosterName(e.target.value)}
-              onKeyDown={(e) => {
-                if (e.key === 'Enter') handleCreateRoster();
-                if (e.key === 'Escape') {
-                  setShowCreateModal(false);
-                  setNewRosterName('');
-                  setError(null);
-                }
-              }}
-              autoFocus
-              placeholder={t('rosters.rosterNamePlaceholder')}
-              className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 mb-4"
-            />
-
-            <div className="flex gap-3">
+            <div className="flex flex-col gap-3">
               <button
-                onClick={handleCreateRoster}
-                className="flex-1 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors font-semibold"
+                onClick={handleConfirmLoadRoster}
+                className="w-full px-4 py-2 bg-blue-600 text-white rounded font-semibold hover:bg-blue-700"
               >
-                {t('rosters.create')}
+                Load Roster
               </button>
               <button
                 onClick={() => {
-                  setShowCreateModal(false);
-                  setNewRosterName('');
-                  setError(null);
+                  setShowLoadWarning(false);
+                  setPendingLoadRosterId(null);
                 }}
-                className="flex-1 px-4 py-2 bg-gray-400 text-white rounded-lg hover:bg-gray-500 transition-colors font-semibold"
+                className="w-full px-4 py-2 bg-gray-300 text-gray-800 rounded hover:bg-gray-400"
               >
                 {t('rosters.cancel')}
               </button>

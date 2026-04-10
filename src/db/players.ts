@@ -31,7 +31,7 @@ export async function getAllPlayers(): Promise<Types.Player[]> {
  * Get all available players
  */
 export async function getAvailablePlayers(): Promise<Types.Player[]> {
-  return db.players.where('available').equals(true).toArray();
+  return db.players.filter((p) => p.available).toArray();
 }
 
 /**
@@ -78,7 +78,8 @@ export async function togglePlayerAvailability(id: string): Promise<number> {
 export async function updatePlayerStats(
   playerId: string,
   matchId: string,
-  won: boolean
+  won: boolean,
+  pointsScored: number = 0
 ): Promise<number> {
   const player = await getPlayer(playerId);
   if (!player) throw new Error(`Player ${playerId} not found`);
@@ -89,6 +90,7 @@ export async function updatePlayerStats(
     matchesPlayed: player.matchesPlayed + 1,
     wins: won ? player.wins + 1 : player.wins,
     losses: won ? player.losses : player.losses + 1,
+    totalPointsScored: (player.totalPointsScored ?? 0) + pointsScored,
     recentMatchIds,
     lastPlayedTime: Date.now(),
   });
@@ -106,6 +108,7 @@ export async function resetPlayerStats(playerId: string): Promise<number> {
     matchesPlayed: 0,
     wins: 0,
     losses: 0,
+    totalPointsScored: 0,
     recentMatchIds: [],
     lastPlayedTime: undefined,
   });
@@ -123,6 +126,7 @@ export async function resetAllPlayerStats(): Promise<void> {
       matchesPlayed: 0,
       wins: 0,
       losses: 0,
+      totalPointsScored: 0,
       recentMatchIds: [],
       lastPlayedTime: undefined,
     });

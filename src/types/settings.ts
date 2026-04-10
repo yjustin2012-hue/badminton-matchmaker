@@ -19,7 +19,10 @@ export interface Settings {
   
   // Advanced match generation
   ignorePendingMatchesForGeneration: boolean; // Allow players in pending matches to be selected for new matches
-  
+
+  // Match deletion behaviour
+  confirmDeletePendingMatch: boolean; // When true, show a confirmation dialog before deleting a pending match
+
   createdAt: number;
   updatedAt: number;
 }

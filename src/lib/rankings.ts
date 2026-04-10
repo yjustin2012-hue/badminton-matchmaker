@@ -15,14 +15,6 @@ function calculateWinPercentage(wins: number, losses: number): number {
 }
 
 /**
- * Check if a player has low sample size for their ranking
- * (too few matches to make confident ranking assessment)
- */
-function isLowSample(matchesPlayed: number, threshold: number): boolean {
-  return matchesPlayed < threshold;
-}
-
-/**
  * Calculate "due-up" status for fairness indicator
  * Player is due-up if they've played significantly fewer matches than average
  */
@@ -55,24 +47,17 @@ export function calculateRankings(
     wins: player.wins,
     losses: player.losses,
     winPercentage: calculateWinPercentage(player.wins, player.losses),
+    totalPointsScored: player.totalPointsScored ?? 0,
     available: player.available,
     dueUp: calculateDueUpStatus(player, avgMatches, config.dueUpThreshold),
     lastPlayedAt: player.lastPlayedTime,
   }));
 
-  // Sort by win percentage (desc), then matches played (desc), then name
+  // Sort: win% desc → total points desc (high-sample tiebreaker) → matches played desc → name asc
   rankings.sort((a, b) => {
-    // First: higher win percentage
-    if (a.winPercentage !== b.winPercentage) {
-      return b.winPercentage - a.winPercentage;
-    }
-
-    // Second: more matches played (more valid ranking)
-    if (a.matchesPlayed !== b.matchesPlayed) {
-      return b.matchesPlayed - a.matchesPlayed;
-    }
-
-    // Third: alphabetically by name
+    if (a.winPercentage !== b.winPercentage) return b.winPercentage - a.winPercentage;
+    if (a.totalPointsScored !== b.totalPointsScored) return b.totalPointsScored - a.totalPointsScored;
+    if (a.matchesPlayed !== b.matchesPlayed) return b.matchesPlayed - a.matchesPlayed;
     return a.playerName.localeCompare(b.playerName);
   });
 

@@ -54,7 +54,7 @@ export default function HistoryPage() {
   };
 
   const handleDeleteSnapshot = async (id: string) => {
-    if (!confirm('Delete this snapshot?')) return;
+    if (!confirm(t('history.deleteSnapshotConfirm'))) return;
 
     try {
       await DB.deleteSnapshot(id);
@@ -144,7 +144,10 @@ export default function HistoryPage() {
           const winner = Stats.getWinnerAndLoserIds(completedMatch);
           if (winner) {
             const isWinner = winner.winnerIds.includes(playerId);
-            await DB.updatePlayerStats(playerId, completedMatch.id, isWinner);
+            const points = completedMatch.teamA.playerIds.includes(playerId)
+              ? (completedMatch.teamAScore ?? 0)
+              : (completedMatch.teamBScore ?? 0);
+            await DB.updatePlayerStats(playerId, completedMatch.id, isWinner, points);
           }
         }
       }
@@ -265,7 +268,14 @@ export default function HistoryPage() {
               </p>
             </div>
             <button
-              onClick={() => setShowSnapshotInput(!showSnapshotInput)}
+              onClick={() => {
+                if (!showSnapshotInput) {
+                  const today = new Date();
+                  const dateStr = today.toLocaleDateString([], { year: 'numeric', month: 'short', day: 'numeric' });
+                  setSnapshotName(dateStr);
+                }
+                setShowSnapshotInput(!showSnapshotInput);
+              }}
               className="px-4 py-2 bg-green-600 text-white rounded font-semibold hover:bg-green-700"
             >
               + {t('history.snapshot')}

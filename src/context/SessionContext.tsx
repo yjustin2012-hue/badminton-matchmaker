@@ -22,6 +22,7 @@ interface SessionContextType {
   isLoading: boolean;
   error: string | null;
   loadedRosterId: string | null; // Track which roster was loaded
+  loadedRosterName: string | null; // Track the name of the loaded roster
 
   // Player operations
   addPlayer: (name: string) => Promise<void>;
@@ -29,6 +30,7 @@ interface SessionContextType {
   updatePlayerName: (id: string, newName: string) => Promise<void>;
   togglePlayerAvailability: (id: string) => Promise<void>;
   loadPresetPlayers: (presetId: string) => Promise<void>;
+  setPlayerPreferredPartner: (playerId: string, partnerId: string | null) => Promise<void>;
 
   // Match operations
   generateMatch: () => Promise<void>;
@@ -63,7 +65,7 @@ interface SessionProviderProps {
 }
 
 export function SessionProvider({ children }: SessionProviderProps) {
-  const { i18n } = useTranslation();
+  const { i18n, t } = useTranslation();
   const [players, setPlayers] = useState<Types.Player[]>([]);
   const [pendingMatches, setPendingMatches] = useState<Types.Match[]>([]);
   const [completedMatches, setCompletedMatches] = useState<Types.Match[]>([]);
@@ -71,6 +73,7 @@ export function SessionProvider({ children }: SessionProviderProps) {
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [loadedRosterId, setLoadedRosterId] = useState<string | null>(null);
+  const [loadedRosterName, setLoadedRosterName] = useState<string | null>(null);
 
   // Initialize database on mount
   useEffect(() => {
@@ -121,6 +124,7 @@ export function SessionProvider({ children }: SessionProviderProps) {
           matchesPlayed: 0,
           wins: 0,
           losses: 0,
+          totalPointsScored: 0,
           recentMatchIds: [],
           createdAt: Date.now(),
           updatedAt: Date.now(),
@@ -183,6 +187,22 @@ export function SessionProvider({ children }: SessionProviderProps) {
     []
   );
 
+  const setPlayerPreferredPartner = useCallback(
+    async (playerId: string, partnerId: string | null) => {
+      try {
+        await DB.updatePlayer(playerId, { preferredPartnerId: partnerId });
+        setPlayers((prev) =>
+          prev.map((p) => (p.id === playerId ? { ...p, preferredPartnerId: partnerId } : p))
+        );
+      } catch (err) {
+        const message = err instanceof Error ? err.message : 'Failed to set pair preference';
+        setError(message);
+        throw err;
+      }
+    },
+    []
+  );
+
   const loadPresetPlayers = useCallback(
     async (presetId: string) => {
       try {
@@ -199,6 +219,7 @@ export function SessionProvider({ children }: SessionProviderProps) {
           matchesPlayed: 0,
           wins: 0,
           losses: 0,
+          totalPointsScored: 0,
           recentMatchIds: [],
           createdAt: Date.now(),
           updatedAt: Date.now(),
@@ -210,6 +231,7 @@ export function SessionProvider({ children }: SessionProviderProps) {
 
         setPlayers(newPlayers);
         setLoadedRosterId(presetId); // Track which roster was loaded
+        setLoadedRosterName(preset.name); // Track the roster name
       } catch (err) {
         const message = err instanceof Error ? err.message : 'Failed to load preset';
         setError(message);
@@ -238,7 +260,24 @@ export function SessionProvider({ children }: SessionProviderProps) {
       );
 
       // Try to generate from non-pending players first
-      let eligibleFiltered = nonPendingPlayers;
+      let eligibleFiltered = [...nonPendingPlayers];
+
+      // Pair-preference pool expansion: if any non-pending player has a preferred
+      // partner who is currently pending, include that partner so the pair can play
+      // together. Respecting preferences takes priority over keeping them off court.
+      const alreadyEligible = new Set(eligibleFiltered.map((p) => p.id));
+      for (const player of nonPendingPlayers) {
+        if (player.preferredPartnerId && !alreadyEligible.has(player.preferredPartnerId)) {
+          const preferredPartner = pendingPlayersList.find(
+            (p) => p.id === player.preferredPartnerId
+          );
+          if (preferredPartner) {
+            eligibleFiltered.push(preferredPartner);
+            alreadyEligible.add(preferredPartner.id);
+          }
+        }
+      }
+
       let result = Matchmaking.generateMatch(eligibleFiltered);
 
       // If can't generate from non-pending, try allowing pending (if setting allows)
@@ -250,12 +289,11 @@ export function SessionProvider({ children }: SessionProviderProps) {
 
       if (result.error) {
         const unavailable = players.filter((p) => !p.available).length;
-        const { t } = require('react-i18next');
         const detailedError = t('court.needEligiblePlayers', {
-          total: players.length,
-          available: available.length,
-          unavailable,
-          pending: pendingPlayersList.length
+          total: String(players.length),
+          available: String(available.length),
+          unavailable: String(unavailable),
+          pending: String(pendingPlayersList.length)
         });
         setError(detailedError);
         throw new Error(detailedError);
@@ -270,7 +308,7 @@ export function SessionProvider({ children }: SessionProviderProps) {
       setError(message);
       throw err;
     }
-  }, [players, settings, pendingMatches]);
+  }, [players, settings, pendingMatches, t]);
 
   const completeMatch = useCallback(
     async (matchId: string, teamAScore: number, teamBScore: number) => {
@@ -284,12 +322,17 @@ export function SessionProvider({ children }: SessionProviderProps) {
         const winnerAndLoser = Stats.getWinnerAndLoserIds(match);
         if (!winnerAndLoser) throw new Error('Could not determine match winner');
 
+        const getPlayerScore = (id: string) =>
+          match.teamA.playerIds.includes(id)
+            ? (match.teamAScore ?? 0)
+            : (match.teamBScore ?? 0);
+
         for (const winnerId of winnerAndLoser.winnerIds) {
-          await DB.updatePlayerStats(winnerId, matchId, true);
+          await DB.updatePlayerStats(winnerId, matchId, true, getPlayerScore(winnerId));
         }
 
         for (const loserId of winnerAndLoser.loserIds) {
-          await DB.updatePlayerStats(loserId, matchId, false);
+          await DB.updatePlayerStats(loserId, matchId, false, getPlayerScore(loserId));
         }
 
         // Reload data
@@ -435,7 +478,8 @@ export function SessionProvider({ children }: SessionProviderProps) {
         };
 
         await DB.addPreset(preset);
-        setLoadedRosterId(null); // Clear loaded roster since we're creating a new one
+        setLoadedRosterId(preset.id);
+        setLoadedRosterName(preset.name);
         setError(null);
       } catch (err) {
         const message = err instanceof Error ? err.message : 'Failed to save preset';
@@ -456,7 +500,8 @@ export function SessionProvider({ children }: SessionProviderProps) {
           })),
           updatedAt: Date.now(),
         });
-        setLoadedRosterId(presetId); // Keep tracking this as the loaded roster
+        setLoadedRosterId(presetId);
+        // Note: loadedRosterName should be updated when overwritePreset is called with the preset name
         setError(null);
       } catch (err) {
         const message = err instanceof Error ? err.message : 'Failed to overwrite preset';
@@ -570,11 +615,13 @@ export function SessionProvider({ children }: SessionProviderProps) {
     isLoading,
     error,
     loadedRosterId,
+    loadedRosterName,
     addPlayer,
     removePlayer,
     updatePlayerName,
     togglePlayerAvailability,
     loadPresetPlayers,
+    setPlayerPreferredPartner,
     generateMatch,
     completeMatch,
     deleteMatch,

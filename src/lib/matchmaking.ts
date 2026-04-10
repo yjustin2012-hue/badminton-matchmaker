@@ -50,19 +50,9 @@ function getFairnessScore(
 }
 
 /**
- * Check if two players have recently been teammates
- */
-function haveRecentlyBeenTeammates(player1: Types.Player, player2: Types.Player): boolean {
-  const recent1 = player1.recentMatchIds || [];
-  const recent2 = player2.recentMatchIds || [];
-  const commonMatches = recent1.filter((id) => recent2.includes(id));
-  return commonMatches.length > 0;
-}
-
-/**
  * Select 4 eligible players for a match
  * Prioritizes fairness (fewer matches played)
- * Uses soft penalty for repetition control
+ * Honours pair preferences by bumping preferred partners into the selected group
  */
 export function selectPlayersForMatch(
   eligiblePlayers: Types.Player[]
@@ -72,65 +62,55 @@ export function selectPlayersForMatch(
     return null;
   }
 
-  // Sort by fairness score (lower = more deserving)
-  const sortedByFairness = [...eligiblePlayers].sort((a, b) => {
-    const scoreA = getFairnessScore(a, [], eligiblePlayers);
-    const scoreB = getFairnessScore(b, [], eligiblePlayers);
-    return scoreA - scoreB;
-  });
+  // Shuffle first so players with equal fairness scores get a fair chance.
+  const sorted = shuffleArray([...eligiblePlayers]).sort((a, b) =>
+    getFairnessScore(a, [], eligiblePlayers) - getFairnessScore(b, [], eligiblePlayers)
+  );
 
-  // Start with the player most deserving of play
-  const selected: Types.Player[] = [sortedByFairness[0]];
+  // Start with the top 4 most-deserving players
+  const selected = sorted.slice(0, 4);
+  const bench = sorted.slice(4);
 
-  // Select 2nd player: prefer someone who hasn't recently played with player 1
-  for (const candidate of sortedByFairness.slice(1)) {
-    if (!haveRecentlyBeenTeammates(selected[0], candidate)) {
-      selected.push(candidate);
+  // Pair-preference bump: if a selected player's preferred partner is on the
+  // bench, swap that partner in by replacing the least-deserving selected
+  // player who isn't already part of a satisfied pair.
+  const honored = new Set<string>();
+  // First pass: mark preferences already satisfied within the initial top-4
+  for (const p of selected) {
+    if (p.preferredPartnerId && selected.some((s) => s.id === p.preferredPartnerId)) {
+      honored.add(p.id);
+      honored.add(p.preferredPartnerId);
+    }
+  }
+  // Second pass: try to satisfy unsatisfied preferences by pulling from bench
+  for (let i = 0; i < selected.length; i++) {
+    const player = selected[i];
+    if (!player.preferredPartnerId) continue;
+    if (honored.has(player.id)) continue; // pair already honored
+
+    const benchIdx = bench.findIndex((p) => p.id === player.preferredPartnerId);
+    if (benchIdx === -1) continue; // preferred partner not in eligible pool at all
+
+    // Find the best candidate to swap out: last (least deserving) selected player
+    // who is not this player and not already part of a honored pair
+    let swapOutIdx = -1;
+    for (let j = selected.length - 1; j >= 0; j--) {
+      if (selected[j].id === player.id) continue;
+      if (honored.has(selected[j].id)) continue;
+      swapOutIdx = j;
       break;
     }
-  }
 
-  // If couldn't find non-teammate, just pick next most deserving
-  if (selected.length === 1) {
-    selected.push(sortedByFairness[1]);
-  }
-
-  // Select 3rd player: prefer someone who hasn't played with selected players
-  for (const candidate of sortedByFairness.slice(1)) {
-    if (selected.every((p) => p.id !== candidate.id)) {
-      const recentlyPlayedWithAny = selected.some((p) =>
-        haveRecentlyBeenTeammates(p, candidate)
-      );
-      if (!recentlyPlayedWithAny) {
-        selected.push(candidate);
-        break;
-      }
+    if (swapOutIdx !== -1) {
+      const [partner] = bench.splice(benchIdx, 1);
+      bench.push(selected[swapOutIdx]);
+      selected[swapOutIdx] = partner;
+      honored.add(player.id);
+      honored.add(partner.id);
     }
   }
 
-  // If couldn't find non-repeated, pick next most deserving
-  if (selected.length === 2) {
-    for (const candidate of sortedByFairness.slice(1)) {
-      if (selected.every((p) => p.id !== candidate.id)) {
-        selected.push(candidate);
-        break;
-      }
-    }
-  }
-
-  // Select 4th player: remaining
-  for (const candidate of sortedByFairness) {
-    if (selected.every((p) => p.id !== candidate.id)) {
-      selected.push(candidate);
-      break;
-    }
-  }
-
-  // Should always have exactly 4 at this point
-  if (selected.length !== 4) {
-    return null;
-  }
-
+  if (selected.length !== 4) return null;
   return selected;
 }
 
@@ -147,32 +127,51 @@ function shuffleArray<T>(array: T[]): T[] {
 }
 
 /**
- * Create a match from selected players
- * Randomizes team assignment for variety (even with same 4 players)
+ * Score a proposed team split by how many pair preferences are satisfied.
+ */
+function scorePairPreferences(teamA: Types.Player[], teamB: Types.Player[]): number {
+  let score = 0;
+  for (const team of [teamA, teamB]) {
+    if (team[0].preferredPartnerId && team[0].preferredPartnerId === team[1].id) score++;
+    if (team[1].preferredPartnerId && team[1].preferredPartnerId === team[0].id) score++;
+  }
+  return score;
+}
+
+/**
+ * Create a match from selected players.
+ * Tries all 3 possible team splits and picks the one that best satisfies
+ * pair preferences. Ties are broken randomly for variety.
  */
 export function createMatchFromPlayers(players: Types.Player[]): Types.Match {
   if (players.length !== 4) {
     throw new Error('Must have exactly 4 players to create a match');
   }
 
-  // Shuffle all 4 players randomly
-  const shuffled = shuffleArray(players);
+  // Shuffle players so base ordering is random
+  const s = shuffleArray([...players]);
 
-  // Debug: log the shuffled players
-  console.log('Players before shuffle:', players.map(p => p.name));
-  console.log('Players after shuffle:', shuffled.map(p => p.name));
+  // All 3 ways to split 4 players into 2 teams of 2
+  const splits: [Types.Player[], Types.Player[]][] = [
+    [[s[0], s[1]], [s[2], s[3]]],
+    [[s[0], s[2]], [s[1], s[3]]],
+    [[s[0], s[3]], [s[1], s[2]]],
+  ];
 
-  // Split into two teams: first 2 vs last 2
+  // Pick the split that satisfies the most pair preferences.
+  // shuffleArray on splits ensures random tiebreaking.
+  const shuffledSplits = shuffleArray(splits);
+  const [bestTeamA, bestTeamB] = shuffledSplits.reduce((best, curr) =>
+    scorePairPreferences(curr[0], curr[1]) > scorePairPreferences(best[0], best[1]) ? curr : best
+  );
+
   const teamA: Types.Match['teamA'] = {
-    playerIds: [shuffled[0].id, shuffled[1].id] as [string, string],
+    playerIds: [bestTeamA[0].id, bestTeamA[1].id] as [string, string],
   };
 
   const teamB: Types.Match['teamB'] = {
-    playerIds: [shuffled[2].id, shuffled[3].id] as [string, string],
+    playerIds: [bestTeamB[0].id, bestTeamB[1].id] as [string, string],
   };
-
-  console.log('Team A:', shuffled[0].name, shuffled[1].name);
-  console.log('Team B:', shuffled[2].name, shuffled[3].name);
 
   const match: Types.Match = {
     id: generateUUID(),

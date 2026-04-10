@@ -14,11 +14,15 @@ export default function SettingsPage() {
   const { t } = useTranslation();
   const session = useSessionContext();
   const [showPasscodeInput, setShowPasscodeInput] = useState(false);
+  const [showVerificationOnly, setShowVerificationOnly] = useState(false);
+  const [currentPasscode, setCurrentPasscode] = useState('');
   const [passcode, setPasscode] = useState('');
   const [passcodeConfirm, setPasscodeConfirm] = useState('');
+  const [passcodeVerified, setPasscodeVerified] = useState(false);
   const [minSample, setMinSample] = useState(session.settings.minMatchesThreshold.toString());
   const [dueUpThreshold, setDueUpThreshold] = useState(session.settings.duUpBelowAverageThreshold.toString());
   const [allowDuplicatePlayers, setAllowDuplicatePlayers] = useState(session.settings.ignorePendingMatchesForGeneration);
+  const [confirmDeleteMatch, setConfirmDeleteMatch] = useState(session.settings.confirmDeletePendingMatch ?? false);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
 
@@ -86,6 +90,20 @@ export default function SettingsPage() {
     }
   };
 
+  const handleConfirmDeleteMatchToggle = async (enabled: boolean) => {
+    try {
+      await DB.updateSettings({ confirmDeletePendingMatch: enabled });
+      await session.reloadSettings();
+      setConfirmDeleteMatch(enabled);
+      setError(null);
+      setSuccess('Delete confirmation setting updated');
+      setTimeout(() => setSuccess(null), 2000);
+    } catch (err) {
+      const message = err instanceof Error ? err.message : 'Failed to update';
+      setError(message);
+    }
+  };
+
   const handleAuthToggle = async (enabled: boolean) => {
     try {
       await session.updateAuthRequirement(enabled);
@@ -98,9 +116,9 @@ export default function SettingsPage() {
     }
   };
 
-  const handleSetPasscode = async () => {
+    const handleSetPasscode = async () => {
     if (!passcode.trim()) {
-      setError('Passcode cannot be empty');
+      setError('New passcode cannot be empty');
       return;
     }
 
@@ -118,11 +136,14 @@ export default function SettingsPage() {
     try {
       const hash = Auth.createPasscodeHash(passcode);
       await session.setAdminPasscode(hash);
+      setCurrentPasscode('');
       setPasscode('');
       setPasscodeConfirm('');
+      setPasscodeVerified(false);
+      setShowVerificationOnly(false);
       setShowPasscodeInput(false);
       setError(null);
-      setSuccess('Admin passcode set successfully');
+      setSuccess('Admin passcode updated successfully');
       setTimeout(() => setSuccess(null), 2000);
     } catch (err) {
       const message = err instanceof Error ? err.message : 'Failed to set passcode';
@@ -219,7 +240,19 @@ export default function SettingsPage() {
                       </p>
                     </div>
                     <button
-                      onClick={() => setShowPasscodeInput(true)}
+                      onClick={() => {
+                        setShowPasscodeInput(true);
+                        setCurrentPasscode('');
+                        setPasscode('');
+                        setPasscodeConfirm('');
+                        setPasscodeVerified(false);
+                        // If changing existing passcode, show verification screen first
+                        if (hasPasscode) {
+                          setShowVerificationOnly(true);
+                        } else {
+                          setShowVerificationOnly(false);
+                        }
+                      }}
                       className="px-4 py-2 bg-blue-600 text-white rounded font-semibold hover:bg-blue-700"
                     >
                       {hasPasscode ? t('settings.change') : t('settings.set')} {t('settings.passcode')}
@@ -228,35 +261,81 @@ export default function SettingsPage() {
                 ) : (
                   <div className="space-y-3">
                     <p className="font-semibold text-gray-800">{t('settings.setAdminPasscode')}</p>
-                    <input
-                      type="password"
-                      value={passcode}
-                      onChange={(e) => setPasscode(e.target.value)}
-                      placeholder={t('settings.enterPasscode')}
-                      className="w-full px-3 py-2 border border-gray-300 rounded"
-                    />
-                    <input
-                      type="password"
-                      value={passcodeConfirm}
-                      onChange={(e) => setPasscodeConfirm(e.target.value)}
-                      placeholder={t('settings.confirmPasscode')}
-                      className="w-full px-3 py-2 border border-gray-300 rounded"
-                      onKeyDown={(e) => {
-                        if (e.key === 'Enter') handleSetPasscode();
-                      }}
-                    />
+
+                    {/* Current passcode verification (MUST be shown first when changing existing passcode) */}
+                    {showVerificationOnly && (
+                      <div className="p-3 bg-blue-50 border border-blue-200 rounded">
+                        <p className="text-sm font-semibold text-blue-900 mb-2">Verify current passcode first</p>
+                        <input
+                          type="password"
+                          value={currentPasscode}
+                          onChange={(e) => setCurrentPasscode(e.target.value)}
+                          placeholder="Enter current passcode"
+                          className="w-full px-3 py-2 border border-gray-300 rounded mb-2"
+                          onKeyDown={(e) => {
+                            if (e.key === 'Enter') handleVerifyCurrentPasscode();
+                          }}
+                        />
+                        <button
+                          onClick={() => {
+                            if (!currentPasscode.trim()) {
+                              setError('Current passcode cannot be empty');
+                              return;
+                            }
+                            const isValid = Auth.verifyAdminPasscode(currentPasscode, session.settings.adminPasscodeHash || '');
+                            if (!isValid) {
+                              setError('Current passcode is incorrect');
+                              return;
+                            }
+                            setPasscodeVerified(true);
+                            setShowVerificationOnly(false);
+                            setError(null);
+                          }}
+                          className="w-full px-4 py-2 bg-blue-600 text-white rounded font-semibold hover:bg-blue-700"
+                        >
+                          Verify
+                        </button>
+                      </div>
+                    )}
+
+                    {/* New passcode inputs (show only AFTER verification succeeds, or if no existing passcode) */}
+                    {!showVerificationOnly && (
+                      <>
+                        <input
+                          type="password"
+                          value={passcode}
+                          onChange={(e) => setPasscode(e.target.value)}
+                          placeholder={t('settings.enterPasscode')}
+                          className="w-full px-3 py-2 border border-gray-300 rounded"
+                        />
+                        <input
+                          type="password"
+                          value={passcodeConfirm}
+                          onChange={(e) => setPasscodeConfirm(e.target.value)}
+                          placeholder={t('settings.confirmPasscode')}
+                          className="w-full px-3 py-2 border border-gray-300 rounded"
+                          onKeyDown={(e) => {
+                            if (e.key === 'Enter') handleSetPasscode();
+                          }}
+                        />
+                      </>
+                    )}
+
                     <div className="flex gap-2">
                       <button
                         onClick={handleSetPasscode}
-                        className="flex-1 px-4 py-2 bg-green-600 text-white rounded font-semibold hover:bg-green-700"
+                        className="flex-1 px-4 py-2 bg-green-600 text-white rounded font-semibold hover:bg-green-700 disabled:opacity-50 disabled:cursor-not-allowed"
+                        disabled={showVerificationOnly}
                       >
                         {t('settings.save')}
                       </button>
                       <button
                         onClick={() => {
                           setShowPasscodeInput(false);
+                          setCurrentPasscode('');
                           setPasscode('');
                           setPasscodeConfirm('');
+                          setPasscodeVerified(false);
                         }}
                         className="flex-1 px-4 py-2 bg-gray-300 text-gray-800 rounded hover:bg-gray-400"
                       >
@@ -342,6 +421,25 @@ export default function SettingsPage() {
                   </div>
                   <p className="text-sm text-gray-600 mt-1">
                     {t('settings.allowPendingMatchesDesc')}
+                  </p>
+                </div>
+              </label>
+            </div>
+
+            <div className="border-t pt-4">
+              <label className="flex items-center p-3 border-2 border-gray-200 rounded cursor-pointer hover:bg-gray-50">
+                <input
+                  type="checkbox"
+                  checked={confirmDeleteMatch}
+                  onChange={(e) => handleConfirmDeleteMatchToggle(e.target.checked)}
+                  className="w-5 h-5"
+                />
+                <div className="ml-3">
+                  <div className="font-semibold text-gray-800">
+                    {t('settings.confirmDeleteMatch')}
+                  </div>
+                  <p className="text-sm text-gray-600 mt-1">
+                    {t('settings.confirmDeleteMatchDesc')}
                   </p>
                 </div>
               </label>

@@ -19,7 +19,8 @@ export default function CourtPage() {
   const [editingPlayerId, setEditingPlayerId] = useState<string | null>(null);
   const [editingName, setEditingName] = useState('');
   const [error, setError] = useState<string | null>(null);
-  const [scoreInput, setScoreInput] = useState<Record<string, { teamA: string; teamB: string }>>({});
+  const [scoreInput, setScoreInput] = useState<Record<string, { teamA: string; teamB: string }>>({}); 
+  const [pairModalPlayerId, setPairModalPlayerId] = useState<string | null>(null);;
 
   // Preset state
   const [presets, setPresets] = useState<Types.Preset[]>([]);
@@ -27,7 +28,9 @@ export default function CourtPage() {
   const [rosterName, setRosterName] = useState('');
   const [showLoadRoster, setShowLoadRoster] = useState(false);
   const [showOverwritePrompt, setShowOverwritePrompt] = useState(false);
-  const [loadedRosterName, setLoadedRosterName] = useState<string | null>(null);
+  const [overwriteRosterName, setOverwriteRosterName] = useState<string | null>(null);
+  const [showLoadRosterWarning, setShowLoadRosterWarning] = useState(false);
+  const [pendingRosterId, setPendingRosterId] = useState<string | null>(null);
 
   useEffect(() => {
     async function loadPresets() {
@@ -117,13 +120,13 @@ export default function CourtPage() {
       return;
     }
 
-    if (!confirm('Remove this player?')) return;
+    if (!confirm(t('court.removePlayerConfirm'))) return;
 
     try {
       await session.removePlayer(id);
       setError(null);
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to remove player');
+      setError(err instanceof Error ? err.message : t('court.failedRemovePlayer'));
     }
   };
 
@@ -132,14 +135,14 @@ export default function CourtPage() {
       await session.generateMatch();
       setError(null);
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to generate match');
+      setError(err instanceof Error ? err.message : t('court.failedGenerateMatch'));
     }
   };
 
   const handleCompleteMatch = async (matchId: string) => {
     const scores = scoreInput[matchId];
     if (!scores || !scores.teamA || !scores.teamB) {
-      setError('Both scores required');
+      setError(t('court.scoresRequired'));
       return;
     }
 
@@ -147,12 +150,12 @@ export default function CourtPage() {
     const teamBScore = parseInt(scores.teamB, 10);
 
     if (isNaN(teamAScore) || isNaN(teamBScore)) {
-      setError('Scores must be numeric');
+      setError(t('court.scoresNumeric'));
       return;
     }
 
     if (teamAScore === teamBScore) {
-      setError('Scores cannot be tied');
+      setError(t('court.scoresCantTie'));
       return;
     }
 
@@ -165,18 +168,20 @@ export default function CourtPage() {
       });
       setError(null);
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to complete match');
+      setError(err instanceof Error ? err.message : t('court.failedCompleteMatch'));
     }
   };
 
   const handleDeleteMatch = async (matchId: string) => {
-    if (!confirm('Delete this pending match?')) return;
+    if (session.settings.confirmDeletePendingMatch) {
+      if (!confirm(t('court.deleteMatchConfirm'))) return;
+    }
 
     try {
       await session.deleteMatch(matchId);
       setError(null);
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to delete match');
+      setError(err instanceof Error ? err.message : t('court.failedDeleteMatch'));
     }
   };
 
@@ -196,7 +201,7 @@ export default function CourtPage() {
 
           if (!isSame) {
             // Rosters are different, show overwrite prompt
-            setLoadedRosterName(loadedPreset.name);
+            setOverwriteRosterName(loadedPreset.name);
             setShowOverwritePrompt(true);
             return;
           }
@@ -218,22 +223,22 @@ export default function CourtPage() {
       const loaded = await DB.getAllPresets();
       setPresets(loaded);
       setShowOverwritePrompt(false);
-      setLoadedRosterName(null);
+      setOverwriteRosterName(null);
       setError(null);
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to overwrite roster');
+      setError(err instanceof Error ? err.message : t('court.failedSaveRoster'));
     }
   };
 
   const handleSaveAsNewRoster = async () => {
     setShowOverwritePrompt(false);
-    setLoadedRosterName(null);
+    setOverwriteRosterName(null);
     setShowSaveRoster(true);
   };
 
   const handleSaveRosterConfirm = async () => {
     if (!rosterName.trim()) {
-      setError('Roster name cannot be empty');
+      setError(t('rosters.nameEmpty'));
       return;
     }
 
@@ -245,7 +250,7 @@ export default function CourtPage() {
       setShowSaveRoster(false);
       setError(null);
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to save roster');
+      setError(err instanceof Error ? err.message : t('court.failedSaveRoster'));
     }
   };
 
@@ -257,12 +262,32 @@ export default function CourtPage() {
       setShowLoadRoster(false);
       setError(null);
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to load roster');
+      setError(err instanceof Error ? err.message : t('court.failedLoadRoster'));
+    }
+  };
+
+  const handleShowLoadRosterWarning = (presetId: string) => {
+    setPendingRosterId(presetId);
+    setShowLoadRosterWarning(true);
+  };
+
+  const handleConfirmLoadRoster = async () => {
+    if (!pendingRosterId) return;
+
+    try {
+      // First, start over (clear pending matches and stats)
+      await session.startOver();
+      // Then load the new roster
+      await handleLoadRoster(pendingRosterId);
+      setShowLoadRosterWarning(false);
+      setPendingRosterId(null);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : t('court.failedLoadRoster'));
     }
   };
 
   const handleDeleteRoster = async (presetId: string) => {
-    if (!confirm('Delete this roster?')) return;
+    if (!confirm(t('rosters.confirmDelete'))) return;
 
     try {
       await DB.deletePreset(presetId);
@@ -270,18 +295,27 @@ export default function CourtPage() {
       setPresets(loaded);
       setError(null);
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to delete roster');
+      setError(err instanceof Error ? err.message : t('court.failedDeleteRoster'));
     }
   };
 
   const handleStartOver = async () => {
-    if (!confirm('Reset session? This will clear pending matches and reset all player stats.')) return;
+    if (!confirm(t('court.confirmStartOver'))) return;
 
     try {
       await session.startOver();
       setError(null);
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to start over');
+      setError(err instanceof Error ? err.message : t('court.failedStartOver'));
+    }
+  };
+
+  const handleSetPairPreference = async (playerId: string, partnerId: string | null) => {
+    try {
+      await session.setPlayerPreferredPartner(playerId, partnerId);
+      setError(null);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : t('court.failedSetPairPreference'));
     }
   };
 
@@ -293,6 +327,14 @@ export default function CourtPage() {
       <div className="flex-1 flex flex-col gap-4 landscape:border-r landscape:pr-6">
         <div className="bg-white rounded-lg shadow p-4">
           <h2 className="text-2xl font-bold mb-4 text-gray-800">{t('court.players')} ({session.players.length})</h2>
+
+          {/* Show loaded roster name if any */}
+          {session.loadedRosterName && (
+            <div className="mb-2 text-sm text-blue-600 font-medium flex items-center gap-1">
+              <span className="inline-block w-2 h-2 bg-blue-400 rounded-full mr-1"></span>
+              {t('court.loadedRosterLabel', { name: session.loadedRosterName })}
+            </div>
+          )}
 
           {/* Error message */}
           {error && (
@@ -347,6 +389,20 @@ export default function CourtPage() {
                           className="px-2 py-0.5 text-xs bg-blue-100 text-blue-700 rounded hover:bg-blue-200 font-semibold"
                         >
                           ✏️ Edit
+                        </button>
+                        <button
+                          onClick={() => setPairModalPlayerId(player.id)}
+                          className={clsx(
+                            'px-2 py-0.5 text-xs rounded font-semibold transition-colors',
+                            player.preferredPartnerId
+                              ? 'bg-violet-500 text-white hover:bg-violet-600'
+                              : 'bg-gray-200 text-gray-400 hover:bg-gray-300'
+                          )}
+                          title={player.preferredPartnerId
+                            ? t('court.pairTooltipActive', { name: playerMap.get(player.preferredPartnerId) ?? 'unknown' })
+                            : t('court.pairTooltipNone')}
+                        >
+                          {player.preferredPartnerId ? t('court.pairActive') : t('court.pair')}
                         </button>
                       </div>
                     )}
@@ -534,6 +590,46 @@ export default function CourtPage() {
                       />
                     </div>
 
+                    {/* Preset score buttons for Team A */}
+                    <div className="mb-3">
+                      <p className="text-xs font-semibold text-gray-600 mb-1">Team A Shortcuts:</p>
+                      <div className="flex gap-1 flex-wrap items-center">
+                        {[10,11,12,13,14,15,16,17,18,19,20,21,22,23,24,25].map((num) => (
+                          <button
+                            key={num}
+                            type="button"
+                            className={num === 21 ? "px-3 py-1 bg-green-500 hover:bg-green-600 text-white rounded text-base font-bold shadow-sm transition scale-110" : "px-3 py-1 bg-green-500 hover:bg-green-600 text-white rounded text-sm font-bold shadow-sm transition"}
+                            onClick={() => setScoreInput((prev) => ({
+                              ...prev,
+                              [match.id]: { ...scores, teamA: num.toString() },
+                            }))}
+                          >
+                            {num}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+
+                    {/* Preset score buttons for Team B */}
+                    <div className="mb-3">
+                      <p className="text-xs font-semibold text-gray-600 mb-1">Team B Shortcuts:</p>
+                      <div className="flex gap-1 flex-wrap items-center">
+                        {[10,11,12,13,14,15,16,17,18,19,20,21,22,23,24,25].map((num) => (
+                          <button
+                            key={num}
+                            type="button"
+                            className={num === 21 ? "px-3 py-1 bg-orange-500 hover:bg-orange-600 text-white rounded text-base font-bold shadow-sm transition scale-110" : "px-3 py-1 bg-orange-500 hover:bg-orange-600 text-white rounded text-sm font-bold shadow-sm transition"}
+                            onClick={() => setScoreInput((prev) => ({
+                              ...prev,
+                              [match.id]: { ...scores, teamB: num.toString() },
+                            }))}
+                          >
+                            {num}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+
                     {/* Action buttons */}
                     <div className="flex gap-2">
                       <button
@@ -605,9 +701,9 @@ export default function CourtPage() {
       {showOverwritePrompt && (
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
           <div className="bg-white rounded-lg shadow-lg max-w-md w-full p-6 space-y-4">
-            <h3 className="text-xl font-bold text-gray-800">Update Roster</h3>
+            <h3 className="text-xl font-bold text-gray-800">{t('court.overwriteTitle')}</h3>
             <p className="text-sm text-gray-600">
-              You've loaded "{loadedRosterName}" and made changes. What would you like to do?
+              {t('court.overwriteDesc', { name: overwriteRosterName })}
             </p>
 
             <div className="flex flex-col gap-3">
@@ -615,18 +711,18 @@ export default function CourtPage() {
                 onClick={handleOverwriteRoster}
                 className="w-full px-4 py-2 bg-blue-600 text-white rounded font-semibold hover:bg-blue-700"
               >
-                Overwrite "{loadedRosterName}"
+                {t('court.overwriteButton', { name: overwriteRosterName })}
               </button>
               <button
                 onClick={handleSaveAsNewRoster}
                 className="w-full px-4 py-2 bg-green-600 text-white rounded font-semibold hover:bg-green-700"
               >
-                Save as New Roster
+                {t('court.saveAsNewButton')}
               </button>
               <button
                 onClick={() => {
                   setShowOverwritePrompt(false);
-                  setLoadedRosterName(null);
+                  setOverwriteRosterName(null);
                 }}
                 className="w-full px-4 py-2 bg-gray-300 text-gray-800 rounded hover:bg-gray-400"
               >
@@ -660,7 +756,7 @@ export default function CourtPage() {
                     </div>
                     <div className="flex gap-2">
                       <button
-                        onClick={() => handleLoadRoster(preset.id)}
+                        onClick={() => handleShowLoadRosterWarning(preset.id)}
                         className="px-3 py-1 text-sm bg-blue-600 text-white rounded hover:bg-blue-700"
                       >
                         {t('court.load')}
@@ -683,6 +779,99 @@ export default function CourtPage() {
             >
               {t('court.close')}
             </button>
+          </div>
+        </div>
+      )}
+
+      {/* Pair Selection Modal */}
+      {pairModalPlayerId && (() => {
+        const currentPlayer = session.players.find(p => p.id === pairModalPlayerId);
+        if (!currentPlayer) return null;
+        const otherPlayers = session.players.filter(p => p.id !== pairModalPlayerId);
+        return (
+          <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+            <div className="bg-white rounded-lg shadow-lg max-w-sm w-full p-6 space-y-4">
+              <h3 className="text-xl font-bold text-gray-800">
+                {t('court.pairModalTitle', { name: currentPlayer.name })}
+              </h3>
+              <p className="text-sm text-gray-500">
+                {t('court.pairModalDesc')}
+              </p>
+              <p className="text-xs text-amber-600 bg-amber-50 border border-amber-200 rounded p-2">
+                {t('court.pairOneDirectional')}
+              </p>
+              <div className="space-y-2 max-h-64 overflow-y-auto">
+                {otherPlayers.length === 0 ? (
+                  <p className="text-sm text-gray-500">{t('court.pairNoOtherPlayers')}</p>
+                ) : (
+                  otherPlayers.map(partner => {
+                    const isSelected = currentPlayer.preferredPartnerId === partner.id;
+                    return (
+                      <button
+                        key={partner.id}
+                        onClick={() => handleSetPairPreference(
+                          pairModalPlayerId,
+                          isSelected ? null : partner.id
+                        )}
+                        className={clsx(
+                          'w-full px-4 py-3 rounded font-semibold text-left flex items-center justify-between transition-colors',
+                          isSelected
+                            ? 'bg-violet-600 text-white hover:bg-violet-700'
+                            : 'bg-gray-100 text-gray-800 hover:bg-gray-200'
+                        )}
+                      >
+                        <span>{partner.name}</span>
+                        {isSelected && <span className="text-sm opacity-90">{t('court.pairPaired')}</span>}
+                      </button>
+                    );
+                  })
+                )}
+              </div>
+              {currentPlayer.preferredPartnerId && (
+                <button
+                  onClick={() => handleSetPairPreference(pairModalPlayerId, null)}
+                  className="w-full px-4 py-2 bg-red-100 text-red-700 rounded font-semibold hover:bg-red-200"
+                >
+                  {t('court.pairClear')}
+                </button>
+              )}
+              <button
+                onClick={() => setPairModalPlayerId(null)}
+                className="w-full px-4 py-2 bg-gray-300 text-gray-800 rounded hover:bg-gray-400"
+              >
+                {t('court.pairClose')}
+              </button>
+            </div>
+          </div>
+        );
+      })()}
+
+      {/* Load Roster Warning Modal */}
+      {showLoadRosterWarning && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-lg shadow-lg max-w-md w-full p-6 space-y-4">
+            <h3 className="text-xl font-bold text-gray-800">{t('court.loadRosterConfirmTitle')}</h3>
+            <p className="text-sm text-gray-600">
+              {t('court.loadRosterConfirmDesc')}
+            </p>
+
+            <div className="flex flex-col gap-3">
+              <button
+                onClick={handleConfirmLoadRoster}
+                className="w-full px-4 py-2 bg-blue-600 text-white rounded font-semibold hover:bg-blue-700"
+              >
+                {t('court.loadRoster')}
+              </button>
+              <button
+                onClick={() => {
+                  setShowLoadRosterWarning(false);
+                  setPendingRosterId(null);
+                }}
+                className="w-full px-4 py-2 bg-gray-300 text-gray-800 rounded hover:bg-gray-400"
+              >
+                {t('court.cancel')}
+              </button>
+            </div>
           </div>
         </div>
       )}

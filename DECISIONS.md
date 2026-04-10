@@ -187,3 +187,186 @@ All new text translated to 3 languages:
 **Last Build**: ✅ Successful (npm run build)  
 **Data Integrity**: ✅ Schema v1 stable, no migration issues  
 **i18n Coverage**: ✅ All new UI text localized (EN, 简体, 繁體)
+
+---
+
+## Session 2: Pair Preference, Fairness Fix, and PWA Hardening
+
+### Decision 2.1: Pair Preference as One-Directional Soft Constraint
+**Date**: April 9, 2026  
+**Issue**: Players wanted to indicate a preferred match partner
+
+**Decision**: Implement pair preference as a one-directional soft constraint
+- A selects B → only A is constrained; B is free to select anyone else or nothing
+- Multiple players can independently prefer the same person
+- Preference is soft: respected when feasible, does not block generation
+- Stored as `preferredPartnerId` on the Player record in IndexedDB
+
+**Rationale**:
+- One-directional mirrors common real-world intent (e.g., a beginner wanting to play with a specific mentor)
+- Soft constraint prevents the feature from making match generation impossible
+- Simpler than two-way mutual agreement logic
+
+---
+
+### Decision 2.2: Pair Preference Pool Expansion
+**Date**: April 9, 2026  
+**Issue**: A player's preferred partner could be in a pending match and thus excluded from the eligible pool, making the preference impossible to satisfy
+
+**Decision**: Expand the eligible pool to include a pending player if they are someone's preferred partner
+- Implemented in `generateMatch` in `SessionContext.tsx`
+- Only pending players who are a named preference are pulled in
+- Does not bypass the general "non-pending first" logic for everyone
+
+**Rationale**:
+- Without this, pair preferences would silently fail whenever scheduling overlapped
+- The pool expansion is targeted and minimal — only the specific preferred partner is added
+
+---
+
+### Decision 2.3: Fairness Selection — Shuffle Before Sort
+**Date**: April 9, 2026  
+**Issue**: With 5 players all at 0 matches (tied fairness scores), the same 4 players were always selected because sort order was deterministic on equal keys
+
+**Decision**: Shuffle eligible players randomly *before* sorting by fairness score
+- Equal-score players are now selected with uniform probability
+- Implemented in `selectPlayersForMatch` in `matchmaking.ts`
+
+**Rationale**:
+- Without shuffling, the 5th player never rotates in at the start
+- Shuffling preserves the fairness intent while adding tie-breaking randomness
+
+---
+
+### Decision 2.4: Pair-Preference Team Assignment via Exhaustive Split Scoring
+**Date**: April 9, 2026  
+**Issue**: Even after selecting the right 4 players, random team assignment could still split preferred partners onto opposing teams
+
+**Decision**: Evaluate all 3 possible 2v2 team splits and choose the one with the highest preference-satisfaction score
+- Score = count of (player, preferred partner) pairs that are on the same team
+- Ties broken randomly (splits list is shuffled before reducing)
+- Implemented in `createMatchFromPlayers` replacing the simple shuffle-and-split
+
+---
+
+### Decision 2.5: PWA Hardening for iPad Safari Install
+**Date**: April 9, 2026  
+
+**Issues found and fixed**:
+1. `public/icons/` was empty — PWA install requires actual PNG files
+2. `index.html` was missing `<link rel="apple-touch-icon">` — required for Safari Home Screen icon
+3. `public/manifest.json` referenced non-existent screenshot files
+4. `App.tsx` manually registered `/sw.js` while `vite-plugin-pwa` auto-registered its own SW — two conflicting service workers
+5. `vite.config.ts` had dead Google Fonts runtime caching (no Google Fonts are used)
+
+**Fixes applied**:
+- Created `scripts/generate-icons.cjs` — pure Node.js (no deps) PNG generator producing 180×180, 192×192, and 512×512 icons
+- Added `<link rel="apple-touch-icon" href="/icons/icon-180x180.png">` to `index.html`
+- Removed screenshot entries from `public/manifest.json`
+- Removed manual SW registration from `App.tsx`; `vite-plugin-pwa` handles SW lifecycle exclusively
+- Replaced dead Google Fonts caching with `cleanupOutdatedCaches: true` in workbox config
+
+**Build output verified**: `dist/` contains all icons, `sw.js`, `workbox-*.js`, `manifest.json`, `manifest.webmanifest`, and all JS/CSS assets.
+
+---
+
+### Decision 2.6: Version Badge in UI
+**Date**: April 9, 2026  
+
+**Decision**: Show a fixed top-right version badge (version number + composition date) on all screens
+- Defined in `src/version.ts` as `APP_VERSION` and `APP_VERSION_DATE` constants
+- Rendered in `Layout.tsx` as a fixed-position, non-interactive overlay
+- Format: `v1.0.0 / Apr 9, 2026`
+- Increment `APP_VERSION` in `src/version.ts` for every released change
+
+---
+
+## Updated Implementation Status
+
+### Completed Features (Session 2)
+- ✅ Pair preference UI (Pair button per player, popup modal, violet highlight when active)
+- ✅ Pair preference persistence (`preferredPartnerId` in IndexedDB)
+- ✅ Pair preference pool expansion in match generation
+- ✅ Pair preference team assignment (exhaustive split scoring)
+- ✅ 5-player fairness fix (shuffle before sort)
+- ✅ PWA icons generated (180, 192, 512px)
+- ✅ `apple-touch-icon` added to HTML
+- ✅ Single service worker (vite-plugin-pwa only, no conflict)
+- ✅ Version badge in top-right of all screens (v1.0.0 · Apr 9, 2026)
+- ✅ Build verified clean
+
+---
+
+## Session 3: Stats Tiebreaker, Delete Confirmation, i18n Hardening
+
+### Decision 3.1: Total Points Scored as Ranking Tiebreaker
+**Date**: April 9, 2026  
+**Issue**: Players with the same win percentage had no stable, meaningful secondary sort key
+
+**Decision**: Add `totalPointsScored` field to Player and accumulate it on each `completeMatch()` call
+- Used as the tiebreaker immediately after win percentage in the ranking sort
+- Displayed as a "Total Pts" column in the Rankings table
+- Low-sample players are already filtered into their own section, so point totals only affect the high-sample ranking order
+- Field initialised to 0 on `addPlayer` and `loadPresetPlayers`; reset with `resetPlayerStats`
+
+**Sort order**: win% desc → total points desc → matches played desc → name asc
+
+---
+
+### Decision 3.2: Confirm Delete Pending Match Setting
+**Date**: April 9, 2026  
+**Issue**: Accidental taps on the delete button for a generated match would lose the match silently
+
+**Decision**: Add `confirmDeletePendingMatch: boolean` to Settings (default: `false`)
+- When `false` (default): matches delete immediately with no prompt — preserves the fast live-session flow
+- When `true`: a `confirm()` dialog appears before deletion
+- Toggle surfaced in Settings → Fairness section with a descriptive label and sub-description
+
+**Rationale**: Default off respects the fast-tap UX for experienced users; opt-in protection for users who want it
+
+---
+
+### Decision 3.3: Full i18n Coverage for UI Strings
+**Date**: April 9, 2026  
+**Issue**: Multiple `confirm()`, `alert()`, and `setError()` calls used hardcoded English strings — they displayed in English regardless of the selected language
+
+**Decision**: Replace every hardcoded UI string with `t()` calls; add any missing keys to all three locale files
+
+**Strings fixed**:
+- `confirm('Remove this player?')` → `t('court.removePlayerConfirm')`
+- `confirm('Delete this pending match?')` → `t('court.deleteMatchConfirm')`
+- `confirm('Delete this roster?')` → `t('rosters.confirmDelete')`
+- `confirm('Reset session?...')` → `t('court.confirmStartOver')`
+- `confirm('Delete this snapshot?')` → `t('history.deleteSnapshotConfirm')`
+- Score validation errors: `t('court.scoresRequired')`, `t('court.scoresNumeric')`, `t('court.scoresCantTie')`
+- Roster name validation: `t('rosters.nameEmpty')`
+- All catch-block fallback strings for roster/match/player operations
+
+**New i18n keys added** (all 3 locales):
+- `court.loadRosterConfirmTitle`, `court.loadRosterConfirmDesc` — Load Roster confirm modal
+- `court.failedLoadRoster`, `court.failedDeleteRoster`, `court.failedSaveRoster`, `court.failedSetPairPreference`
+- `court.pairOneDirectional` — one-directional pairing warning in pair modal
+
+---
+
+### Decision 3.4: One-Directional Pair Warning in Pair Modal
+**Date**: April 9, 2026  
+**Issue**: Users were not aware that pair preferences are one-directional — Player A pairing with B does not automatically make B prefer A
+
+**Decision**: Display an amber warning banner inside the pair selection modal
+- Styled with amber border + background to draw attention without being alarming
+- Text: "⚠️ Pairing is one-directional. For mutual pairing, the other player must also select you."
+- Translated in all 3 locales via `court.pairOneDirectional`
+
+---
+
+## Updated Implementation Status
+
+### Completed Features (Session 3)
+- ✅ `totalPointsScored` field — accumulated per match, tiebreaker in rankings, "Total Pts" column visible
+- ✅ `confirmDeletePendingMatch` setting — default off, opt-in confirm dialog before deleting pending match
+- ✅ All `confirm()` / `setError()` hardcoded strings replaced with `t()` calls
+- ✅ New i18n keys added to all 3 locales (en, zh-Hans, zh-Hant)
+- ✅ Pair modal one-directional warning (amber banner, fully translated)
+- ✅ Version bumped to 1.0.2
+- ✅ Build verified clean (v1.0.2)

@@ -1,4 +1,6 @@
-    "court.needEligiblePlayers": "需要至少4名合格球员。当前有{{available}}人。（总数：{{total}}，可用：{{available}}，不可用：{{unavailable}}，待进行比赛中：{{pending}}）",
+{
+  "court.loadedRosterLabel": "已加载名单：{{name}}",
+  "court.needEligiblePlayers": "需要至少4名合格球员。当前有{{available}}人。（总数：{{total}}，可用：{{available}}，不可用：{{unavailable}}，待进行比赛中：{{pending}}）",
   "rosters.nameEmpty": "名单名称不能为空",
   "rosters.nameExists": "已存在同名名单",
   "rosters.failedLoad": "加载名单失败",
@@ -6,8 +8,7 @@
   "rosters.failedDelete": "删除名单失败",
   "rosters.failedRename": "重命名单单失败",
   "rosters.notFound": "未找到名单",
-
-{
+  
   "app.title": "羽毛球配对器",
   "app.version": "v0.1.0",
   
@@ -48,7 +49,8 @@
   "court.load": "加载",
   "court.close": "关闭",
   "court.overwriteTitle": "更新阵容",
-  "court.overwriteButton": "覆盖",
+  "court.overwriteDesc": "您已加载「{{name}}」并进行了更改。您想怎么做？",
+  "court.overwriteButton": "覆盖「{{name}}」",
   "court.saveAsNewButton": "保存为新阵容",
   "court.removePlayerConfirm": "移除该球员？",
   "court.deleteMatchConfirm": "删除此待进行的比赛？",
@@ -67,9 +69,15 @@
   "court.failedCompleteMatch": "完成比赛失败",
   "court.failedDeleteMatch": "删除比赛失败",
   "court.failedStartOver": "重新开始失败",
+  "court.failedSaveRoster": "保存名单失败",
+  "court.failedSetPairPreference": "设置搭档偏好失败",
   "court.available": "可用",
   "court.unavailable": "不可用",
   "court.doubleClickEdit": "双击编辑",
+  "court.loadRosterConfirmTitle": "加载名单？",
+  "court.loadRosterConfirmDesc": "加载新名单将清除所有待处理比赛并重置球员统计。是否继续？",
+  "court.failedLoadRoster": "加载名单失败",
+  "court.failedDeleteRoster": "删除名单失败",
   
   "rankings.title": "排名",
   "rankings.players": "球员",
@@ -83,8 +91,7 @@
   "rankings.dueUp": "应该上场",
   "rankings.available": "可用",
   "rankings.unavailable": "不可用",
-  "rankings.noRankings": "还没有排名",
-  "rankings.lowSampleSize": "样本太小",
+  "rankings.noRankings": "还没有排名",  "rankings.totalPts": "总分",  "rankings.lowSampleSize": "样本太小",
   "rankings.lowSample": "样本太小",
   "rankings.lowSampleDescription": "这些球员少于{{count}}场比赛。排名可能不准确。",
   "rankings.lowSampleMessage": "这些球员少于{{threshold}}场比赛。排名可能不准确。",
@@ -181,8 +188,8 @@
   "settings.dueUpThresholdDesc": "如果球员的比赛数少于平均值，则被标记为「应该上场」",
   "settings.dueUpDescription": "如果球员的比赛数少于平均值，则被标记为「应该上场」",
   "settings.allowPendingMatches": "允许等待中的比赛中的球员参加新比赛",
-  "settings.allowPendingMatchesDesc": "启用后，即使球员已经在等待中的比赛中，也可以为新比赛选择该球员。适用于提前规划。",
-  "settings.matches": "场比赛",
+  "settings.allowPendingMatchesDesc": "启用后，即使球员已经在等待中的比赛中，也可以为新比赛选择该球员。适用于提前规划。",  "settings.confirmDeleteMatch": "删除待进行比赛前确认",
+  "settings.confirmDeleteMatchDesc": "开启后，删除生成的比赛时将弹出确认对话框。",  "settings.matches": "场比赛",
   "settings.matchesBelowAverage": "低于平均的比赛数",
   "settings.matchesBelow": "低于平均的比赛数",
   "settings.save": "保存",
@@ -202,5 +209,19 @@
   "settings.successThreshold": "阈值已更新",
   
   "error.required": "此字段是必需的",
-  "error.invalid": "输入无效"
+  "error.invalid": "输入无效",
+
+  "court.pair": "搭档",
+  "court.pairActive": "搭档 ✓",
+  "court.pairTooltipActive": "已配对：{{name}}",
+  "court.pairTooltipNone": "未选择搭档",
+  "court.pairModalTitle": "为 {{name}} 选择搭档",
+  "court.pairModalDesc": "系统将尽可能将此球员与所选搭档分在同一队。",
+  "court.pairNoOtherPlayers": "没有其他球员可选。",
+  "court.pairPaired": "✓ 已配对",
+  "court.pairClear": "清除搭档",
+  "court.pairClose": "关闭",
+  "court.pairOneDirectional": "⚠️ 配对是单向的。如需互相配对，对方也需选择您。",
+
+  "history.snapshotDefaultName": "{{date}}"
 }

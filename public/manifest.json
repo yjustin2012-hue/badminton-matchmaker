@@ -34,19 +34,5 @@
       "purpose": "maskable"
     }
   ],
-  "categories": ["sports"],
-  "screenshots": [
-    {
-      "src": "/screenshots/screenshot1.png",
-      "sizes": "1280x720",
-      "type": "image/png",
-      "form_factor": "wide"
-    },
-    {
-      "src": "/screenshots/screenshot2.png",
-      "sizes": "1280x720",
-      "type": "image/png",
-      "form_factor": "wide"
-    }
-  ]
+  "categories": ["sports"]
 }
