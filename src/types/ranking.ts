@@ -10,7 +10,8 @@ export interface Ranking {
   wins: number;
   losses: number;
   winPercentage: number; // 0-100, or 0 if no matches yet
-  totalPointsScored: number; // Tiebreaker when win% is equal
+  rankScore: number; // Primary ranking criterion
+  totalPointsScored: number; // Secondary ranking tiebreaker
   available: boolean;
   dueUp: boolean;
   lastPlayedAt?: number;

@@ -1,4 +1,4 @@
-import { useState, ReactNode } from 'react'
+import { useState, useEffect } from 'react'
 import { useTranslation } from 'react-i18next'
 import clsx from 'clsx'
 import CourtPage from '../pages/CourtPage.tsx'
@@ -6,9 +6,11 @@ import RankingsPage from '../pages/RankingsPage.tsx'
 import HistoryPage from '../pages/HistoryPage.tsx'
 import RostersPage from '../pages/RostersPage.tsx'
 import SettingsPage from '../pages/SettingsPage.tsx'
+import CourtsPage from '../pages/CourtsPage.tsx'
 import { APP_VERSION, APP_VERSION_DATE } from '../version.ts'
+import { useSessionContext } from '../context/SessionContext.tsx'
 
-export type TabId = 'court' | 'rankings' | 'history' | 'rosters' | 'settings'
+export type TabId = 'court' | 'rankings' | 'history' | 'rosters' | 'courts' | 'settings'
 
 interface TabButtonProps {
   label: string
@@ -34,7 +36,21 @@ function TabButton({ label, active, onClick }: TabButtonProps) {
 
 export default function Layout() {
   const { t } = useTranslation()
+  const session = useSessionContext()
   const [activeTab, setActiveTab] = useState<TabId>('court')
+  const courtViewEnabled = session.settings.courtViewEnabled
+  const fontScale = session.settings.appFontSize ?? 100
+  const appTheme = session.settings.appTheme ?? 'light'
+
+  useEffect(() => {
+    document.documentElement.style.fontSize = `${fontScale}%`
+    return () => { document.documentElement.style.fontSize = '' }
+  }, [fontScale])
+
+  useEffect(() => {
+    document.documentElement.setAttribute('data-theme', appTheme)
+    return () => { document.documentElement.removeAttribute('data-theme') }
+  }, [appTheme])
 
   return (
     <div className="flex flex-col h-screen w-screen">
@@ -46,10 +62,11 @@ export default function Layout() {
       </div>
       {/* Main content area */}
       <div className="flex-1 overflow-auto bg-white">
-        {activeTab === 'court' && <CourtPage />}
+        <div style={{ display: activeTab === 'court' ? '' : 'none', height: '100%' }}><CourtPage /></div>
         {activeTab === 'rankings' && <RankingsPage />}
         {activeTab === 'history' && <HistoryPage />}
         {activeTab === 'rosters' && <RostersPage />}
+        {activeTab === 'courts' && <CourtsPage />}
         {activeTab === 'settings' && <SettingsPage />}
       </div>
 
@@ -75,6 +92,13 @@ export default function Layout() {
           active={activeTab === 'rosters'}
           onClick={() => setActiveTab('rosters')}
         />
+        {courtViewEnabled && (
+          <TabButton
+            label={t('nav.courts')}
+            active={activeTab === 'courts'}
+            onClick={() => setActiveTab('courts')}
+          />
+        )}
         <TabButton
           label={t('nav.settings')}
           active={activeTab === 'settings'}

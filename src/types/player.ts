@@ -13,9 +13,16 @@ export interface Player {
   wins: number;
   losses: number;
   totalPointsScored: number; // Cumulative points scored across all matches (tiebreaker)
+  rankScore: number; // Ranking score: normal win=+1; showdown initiator win=×2, loss=-1
 
   // Pair preference: player this person wants to be teamed with
   preferredPartnerId?: string | null;
+
+  // Anti-pair constraint: player IDs this player refuses to be teamed with
+  doNotPairWithIds?: string[];
+
+  // Display color (hex, e.g. '#fca5a5') — optional highlight on player card
+  color?: string;
 
   // For fairness and repetition control
   recentMatchIds: string[]; // Last N match IDs for teammate/opponent analysis

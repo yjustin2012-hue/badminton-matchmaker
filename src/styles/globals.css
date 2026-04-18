@@ -129,3 +129,116 @@ button:disabled {
     z-index: 9999;
   }
 }
+
+/* ===================== App Themes ===================== */
+/*
+  Themes are applied via [data-theme="..."] on <html>.
+  Each theme overrides a set of CSS custom properties used via Tailwind utilities.
+  The property names mirror Tailwind's slate/accent color roles.
+*/
+
+/* Default / light theme — no overrides needed, Tailwind defaults apply */
+
+[data-theme="dark"] {
+  --theme-bg: #1e1e2e;
+  --theme-surface: #2a2a3e;
+  --theme-border: #3f3f5c;
+  --theme-text: #e2e8f0;
+  --theme-muted: #94a3b8;
+  --theme-accent: #818cf8;
+  --theme-accent-hover: #6366f1;
+}
+
+[data-theme="blue"] {
+  --theme-bg: #eff6ff;
+  --theme-surface: #dbeafe;
+  --theme-border: #bfdbfe;
+  --theme-text: #1e3a5f;
+  --theme-muted: #3b82f6;
+  --theme-accent: #2563eb;
+  --theme-accent-hover: #1d4ed8;
+}
+
+[data-theme="purple"] {
+  --theme-bg: #faf5ff;
+  --theme-surface: #f3e8ff;
+  --theme-border: #e9d5ff;
+  --theme-text: #3b0764;
+  --theme-muted: #a855f7;
+  --theme-accent: #9333ea;
+  --theme-accent-hover: #7e22ce;
+}
+
+[data-theme="pink"] {
+  --theme-bg: #fdf2f8;
+  --theme-surface: #fce7f3;
+  --theme-border: #fbcfe8;
+  --theme-text: #831843;
+  --theme-muted: #ec4899;
+  --theme-accent: #db2777;
+  --theme-accent-hover: #be185d;
+}
+
+[data-theme="yellow"] {
+  --theme-bg: #fefce8;
+  --theme-surface: #fef9c3;
+  --theme-border: #fde68a;
+  --theme-text: #713f12;
+  --theme-muted: #ca8a04;
+  --theme-accent: #d97706;
+  --theme-accent-hover: #b45309;
+}
+
+/* Apply theme variables to base elements */
+[data-theme="dark"] body,
+[data-theme="blue"] body,
+[data-theme="purple"] body,
+[data-theme="pink"] body,
+[data-theme="yellow"] body {
+  background-color: var(--theme-bg);
+  color: var(--theme-text);
+}
+
+[data-theme="dark"] .bg-white,
+[data-theme="dark"] .bg-gray-50 {
+  background-color: var(--theme-surface) !important;
+  color: var(--theme-text);
+}
+
+[data-theme="dark"] .bg-gray-100 {
+  background-color: #2f2f45 !important;
+}
+
+[data-theme="dark"] .text-gray-800,
+[data-theme="dark"] .text-gray-700 {
+  color: var(--theme-text) !important;
+}
+
+[data-theme="dark"] .text-gray-600,
+[data-theme="dark"] .text-gray-500 {
+  color: var(--theme-muted) !important;
+}
+
+[data-theme="dark"] .border-gray-200,
+[data-theme="dark"] .border-gray-300 {
+  border-color: var(--theme-border) !important;
+}
+
+[data-theme="dark"] .shadow {
+  box-shadow: 0 1px 4px 0 rgba(0,0,0,0.5);
+}
+
+/* Blue / Purple / Pink / Yellow: tint backgrounds only */
+[data-theme="blue"] .bg-white,
+[data-theme="purple"] .bg-white,
+[data-theme="pink"] .bg-white,
+[data-theme="yellow"] .bg-white {
+  background-color: var(--theme-surface) !important;
+}
+
+[data-theme="blue"] .bg-gray-50,
+[data-theme="purple"] .bg-gray-50,
+[data-theme="pink"] .bg-gray-50,
+[data-theme="yellow"] .bg-gray-50 {
+  background-color: var(--theme-bg) !important;
+}

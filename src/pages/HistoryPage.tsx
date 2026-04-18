@@ -127,29 +127,28 @@ export default function HistoryPage() {
 
       // Affect players are all in teamA and teamB
       const affectedPlayerIds = new Set([...match.teamA.playerIds, ...match.teamB.playerIds]);
+      const completedMatches = await DB.getCompletedMatches();
 
       // Recalculate stats for affected players
       for (const playerId of affectedPlayerIds) {
-        await DB.resetPlayerStats(playerId);
+        const player = await DB.getPlayer(playerId);
+        if (!player) continue;
 
-        // Get all completed matches for this player
-        const playerMatches = await DB.getCompletedMatches();
-        const playerCompletedMatches = playerMatches.filter(
-          (m) =>
-            m.teamA.playerIds.includes(playerId) || m.teamB.playerIds.includes(playerId)
-        );
+        const recalculated = Stats.calculatePlayerStatsFromMatches(player, completedMatches, {
+          showdownWinBonus: session.settings.showdownWinBonus ?? 3,
+          showdownLossDeduction: session.settings.showdownLossDeduction ?? 1,
+        });
 
-        // Recalculate stats
-        for (const completedMatch of playerCompletedMatches) {
-          const winner = Stats.getWinnerAndLoserIds(completedMatch);
-          if (winner) {
-            const isWinner = winner.winnerIds.includes(playerId);
-            const points = completedMatch.teamA.playerIds.includes(playerId)
-              ? (completedMatch.teamAScore ?? 0)
-              : (completedMatch.teamBScore ?? 0);
-            await DB.updatePlayerStats(playerId, completedMatch.id, isWinner, points);
-          }
-        }
+        await DB.updatePlayer(playerId, {
+          matchesPlayed: recalculated.matchesPlayed,
+          wins: recalculated.wins,
+          losses: recalculated.losses,
+          rankScore: recalculated.rankScore,
+          totalPointsScored: recalculated.totalPointsScored,
+          recentMatchIds: recalculated.recentMatchIds,
+          lastPlayedTime: recalculated.lastPlayedTime,
+          updatedAt: recalculated.updatedAt,
+        });
       }
 
       // Reload match data
@@ -375,6 +374,9 @@ export default function HistoryPage() {
                               <div className="text-gray-600">
                                 {rank.winPercentage.toFixed(0)}% ({rank.wins}{t('court.wins')}-{rank.losses}{t('court.losses')})
                               </div>
+                              {rank.totalPointsScored !== undefined && (
+                                <div className="text-gray-500">{rank.totalPointsScored} {t('history.pts')}</div>
+                              )}
                             </div>
                           ))
                         ) : null}
@@ -387,8 +389,9 @@ export default function HistoryPage() {
                                   <div className="font-semibold text-gray-600">{rank.playerName}</div>
                                   <div className="text-gray-500">
                                     {rank.winPercentage.toFixed(0)}% ({rank.wins}{t('court.wins')}-{rank.losses}{t('court.losses')})
-                                  </div>
-                                </div>
+                                  </div>                                {rank.totalPointsScored !== undefined && (
+                                  <div className="text-gray-400">{rank.totalPointsScored} {t('history.pts')}</div>
+                                )}                                </div>
                               ))}
                             </div>
                           </div>

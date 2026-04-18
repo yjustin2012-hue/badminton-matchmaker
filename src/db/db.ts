@@ -9,3 +9,4 @@ export * from './matches';
 export * from './snapshots';
 export * from './presets';
 export * from './settings';
+export * from './courtLayouts';

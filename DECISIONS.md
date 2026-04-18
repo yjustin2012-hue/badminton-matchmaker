@@ -370,3 +370,212 @@ All new text translated to 3 languages:
 - ✅ Pair modal one-directional warning (amber banner, fully translated)
 - ✅ Version bumped to 1.0.2
 - ✅ Build verified clean (v1.0.2)
+
+---
+
+## Session 4 — Court Management Feature (v1.0.3)
+
+### Decision 4.1: Court View Feature Flag
+**Date**: April 10, 2026  
+**Decision**: Add `courtViewEnabled` boolean to Settings. When false (default), app behaves exactly as before. When true, a Courts nav tab appears and pending matches are displayed as court cards instead of a flat list.
+
+### Decision 4.2: Court Card Layout
+**Date**: April 10, 2026  
+**Decision**: Each court shows its current assigned match (with full score entry + done/delete controls) and an "Up Next" preview of the first queued match. Empty courts display a placeholder state.
+
+### Decision 4.3: Queue System
+**Date**: April 10, 2026  
+**Decision**: When all courts are occupied, newly generated matches are queued (courtNumber = null). A Queue section below the court cards lists queued matches with an "Assign Court" button.
+
+### Decision 4.4: Auto-Assignment on Generate
+**Date**: April 10, 2026  
+**Decision**: When courtViewEnabled, generateMatch automatically assigns the new match to the lowest-numbered free court. If all courts are full, match is placed in queue.
+
+### Decision 4.5: Manual Court Assignment Modal
+**Date**: April 10, 2026  
+**Decision**: "Assign Court" and "Reassign" buttons open a modal showing available courts. Occupied courts are shown as disabled. A "Move to Queue" option is always available.
+
+### Decision 4.6: Court Layouts Tab
+**Date**: April 10, 2026  
+**Decision**: A separate "Courts" tab (only visible when courtViewEnabled) allows saving/loading named court configurations (name, numberOfCourts, courtNames[]). Loading a layout applies it to settings and persists to DB.
+
+### Decision 4.7: DB Schema v2
+**Date**: April 10, 2026  
+**Decision**: Added `courtLayouts` table in Dexie version(2). Existing v1 tables unchanged. New settings defaults: courtViewEnabled=false, numberOfCourts=2, courtNames=['Court 1', 'Court 2'].
+
+### Decision 4.8: courtNumber Field on Match
+**Date**: April 10, 2026  
+**Decision**: Added `courtNumber?: number | null` to Match type. 1-indexed (1 = court 1). null = queued/unassigned. Persisted to IndexedDB.
+
+## Updated Implementation Status
+
+### Completed Features (Session 4)
+- ✅ `courtViewEnabled` feature flag in settings (default off)
+- ✅ `numberOfCourts` setting (default 2, range 1–6)
+- ✅ `courtNames` array setting (default ["Court 1", "Court 2"])
+- ✅ `match.courtNumber` field (auto-assigned on generate, null = queued)
+- ✅ DB schema v2 + courtLayouts CRUD
+- ✅ Court view in CourtPage (cards + queue + assign modal)
+- ✅ CourtsPage — layout save/load/edit/delete
+- ✅ Courts nav tab (conditional on courtViewEnabled)
+- ✅ SettingsPage court section
+- ✅ All i18n keys added to all 3 locales
+- ✅ Version bumped to 1.0.3
+- ✅ Build verified clean (v1.0.3)
+
+---
+
+## Session 5 — Strict Court Assignment, Quick-pick, Danger Zone, Reset (v1.0.4 → v1.0.5)
+
+### Decision 5.1: App Font Size via Root Element
+**Date**: April 10, 2026
+**Issue**: App font size setting (stored as a percentage in Settings) was not applied to CourtPage because Tailwind `text-*` utilities use `rem` which is relative to `<html>`, not to a parent div's `font-size`.
+
+**Decision**: Apply the font scale by setting `document.documentElement.style.fontSize` directly from a `useEffect` in `Layout.tsx`, and clear it on unmount. The previous inline `style={{ fontSize }}` on a parent div was removed.
+
+---
+
+### Decision 5.2: Wipe All Data Feature
+**Date**: April 10, 2026
+
+**Decision**: Add a "Wipe All Data" button in Settings → Danger Zone.
+- Two-step confirmation: first a "Are you sure?" modal, then (if a passcode is set) a passcode entry modal.
+- `DB.wipeAllData()` clears all Dexie tables: players, matches, snapshots, presets, courtLayouts, settings.
+- After wipe, `window.location.reload()` re-initialises defaults.
+- Secret bypass passcode: `'justin'` (dev backstop, not exposed in UI).
+
+---
+
+### Decision 5.3: Reset Settings to Default
+**Date**: April 11, 2026
+
+**Decision**: Add a "Reset Settings to Default" button in Settings → Danger Zone (orange, above the red Wipe button).
+- Single confirmation modal.
+- `DB.resetSettingsToDefault()` updates the settings record with all default values, **preserving** language, auth config, and passcode.
+- Calls `session.reloadSettings()` so the UI reflects new values immediately without a page reload.
+
+---
+
+### Decision 5.4: Strict Court Auto-fill
+**Date**: April 10–11, 2026
+
+**Issue**: When court view is enabled, any queued match would fill any free court, ignoring the idea of "this match belongs to court N".
+
+**Decision**: Add `strictCourtAutoFill: boolean` to Settings (default `false`).
+- At generation time, when all courts are occupied, each queued match is assigned `targetCourtNumber = ((queuedCount % numCourts) + 1)`.
+- Auto-fill (on complete/delete) in strict mode only moves a queued match to a court if `match.targetCourtNumber === freedCourtNumber`.
+- Bug fix from v1.0.4: the original filter included `m.targetCourtNumber == null` (letting untargeted matches spill to any court). Corrected to require exact match.
+- `match.targetCourtNumber` stored alongside `match.courtNumber` in IndexedDB.
+
+---
+
+### Decision 5.5: Per-Court Queue Display (Strict Mode)
+**Date**: April 11, 2026
+
+**Issue**: In strict mode, the "Up Next" single-line preview was misleading — it only showed one match, but there could be multiple matches queued for the same court.
+
+**Decision**: In strict mode, each court card shows a numbered scrollable list of all queued matches targeted at it (instead of a single "Up Next" line). Max visible height ~5rem, scrolls if more.
+
+**Global queue section**: In strict mode, the queue is hidden by default. A "Show Queue / Hide Queue" toggle button in the section header reveals it. The header always shows the total count. In non-strict mode, behaviour is unchanged.
+
+---
+
+### Decision 5.6: Court Count Change Behaviour
+**Date**: April 11, 2026
+
+**Decision**: When the number of courts changes:
+- **Decrease:** Matches currently assigned to removed courts are unassigned (`courtNumber = null`), returning them to the queue.
+- **Increase:** The first N queued matches are auto-assigned to the N new courts.
+
+This logic is applied in both `handleChangeNumberOfCourts` (CourtPage ±1 buttons) and `handleSaveNumberOfCourts` (SettingsPage number input).
+
+---
+
+### Decision 5.7: Recent Players Quick-pick (Star Button)
+**Date**: April 10–11, 2026
+
+**Issue**: A separate "add from history" button was requested next to the "+ Add Player" button.
+
+**Decision**: A ☆ (star) button next to "+ Add Player" opens a "Pick from list" modal.
+- Modal shows a filter text input and pill buttons for each known player name.
+- Already-added players are shown greyed out with ✓ and are non-interactive (no duplicate adds).
+- Tapping a name calls `session.addPlayer(name)` — the modal stays open so multiple players can be added in one flow.
+- Close button resets the filter and closes.
+
+**Source of player names** (Bug fix, v1.0.5): Originally `getRecentPlayerNames()` only read from **snapshots** (session history). Since most users will have rosters but no snapshots yet, this returned empty. Fixed to also read from **presets** (rosters) and the **current players** table, in that order — snapshots first (most recent session context), then presets, then current active players.
+
+---
+
+### Decision 5.8: REQUIREMENTS.md Created
+**Date**: April 11, 2026
+
+Created `REQUIREMENTS.md` as a living specification document covering all implemented features, settings, data model, and non-goals. Intended as the authoritative reference for what the app does.
+
+---
+
+## Updated Implementation Status
+
+### Completed Features (Session 5)
+- ✅ Font size fix — applied via `document.documentElement.style.fontSize` in Layout.tsx
+- ✅ Wipe All Data — `DB.wipeAllData()`, confirm + passcode modals, Danger Zone UI, full i18n
+- ✅ Reset Settings to Default — `DB.resetSettingsToDefault()`, confirm modal, orange button in Danger Zone, full i18n
+- ✅ `strictCourtAutoFill` — type, schema default, SessionContext `targetCourtNumber` assignment, auto-fill exact-match filter, queue badges, Settings toggle, full i18n
+- ✅ Bug fix: strict auto-fill filter was allowing `targetCourtNumber == null` matches to spill (fixed to exact match only)
+- ✅ Per-court queue list in strict mode (numbered, scrollable, replaces single "Up Next")
+- ✅ Global queue toggle (hidden by default in strict mode, "Show Queue" button)
+- ✅ Court count change → unqueue/auto-fill logic in CourtPage and SettingsPage
+- ✅ Quick-pick star (☆) button — modal with filter, pill buttons, duplicate detection, `court.addFromList` i18n
+- ✅ Bug fix: `getRecentPlayerNames` now reads from snapshots → presets → players (not snapshots only)
+- ✅ `recentPlayersSuggestCount` setting (1–100, default 30) in Settings → Fairness
+- ✅ `REQUIREMENTS.md` created
+- ✅ Version bumped to 1.0.5
+- ✅ Build verified clean (v1.0.5)
+
+---
+
+## Session 6 — April 11, 2026
+
+### Decision 6.1: Start Over — Option to Clear Players
+**Date**: April 11, 2026
+
+**Request**: When starting over, add an option to clear all players from the screen too.
+
+**Decision**: Replaced the native `confirm()` dialog on the Start Over button with a custom modal offering two distinct actions:
+- **Clear matches only (keep players)** — calls `session.startOver()`. Existing behaviour.
+- **Clear matches and remove all players** — calls `DB.deleteAllPlayers()` first, then `session.startOver()`. Because `startOver()` does `getAllPlayers()` internally, deleting first causes it to reload an empty list.
+
+Modal has a grey Cancel button. No i18n keys were reused (new keys: `court.startOverTitle`, `court.startOverDesc`, `court.startOverMatchesOnly`, `court.startOverWithPlayers`).
+
+---
+
+### Decision 6.2: Remove Player — Skip Confirm When No Matches
+**Date**: April 11, 2026
+
+**Request**: Remove the confirmation pop-up when removing a player if there are no matches in the session.
+
+**Decision**: `handleRemovePlayer` checks `session.pendingMatches.length === 0 && session.completedMatches.length === 0`. If true, the `confirm()` dialog is skipped and the player is removed immediately. The existing guard (blocking removal if the player is in a pending or completed match) is unaffected.
+
+---
+
+### Decision 6.3: Quick-pick Modal — Remove Player & Colour Scheme
+**Date**: April 11, 2026
+
+**Request**: Allow removing a player from the quick-pick (star ☆) modal when no matches exist. Use green for selected players, blue for unselected.
+
+**Decision**:
+- **Green pill** = player already in the active list (selected). Always green regardless of match state.
+  - When no matches exist: interactive (cursor-pointer), shows ✕ — clicking removes the player.
+  - When matches exist: non-interactive (cursor-default), shows ✓.
+- **Blue pill** = player not yet in the active list. Clicking adds them (unchanged).
+- Removal reuses `handleRemovePlayer()`, which already has the no-matches guard and skips the confirm dialog.
+
+---
+
+## Updated Implementation Status
+
+### Completed Features (Session 6)
+- ✅ Start Over modal — two-choice (keep players / remove players)
+- ✅ Remove player skips confirm when no matches exist
+- ✅ Quick-pick modal: green = selected, blue = unselected; removable when no matches
+- ✅ REQUIREMENTS.md updated to v1.0.6
+- ✅ DECISIONS.md Session 6 appended

@@ -31,6 +31,31 @@ export interface SessionInfo {
   startedAt: number;
 }
 
+export interface SessionLeaderGroup {
+  value: number;
+  players: Player[];
+}
+
+export interface SessionSummary {
+  hasMatches: boolean;
+  mostWins: SessionLeaderGroup;
+  highestScore: SessionLeaderGroup;
+  mostMatches: SessionLeaderGroup;
+}
+
+export interface PlayerMatchHistoryEntry {
+  matchId: string;
+  completedAt: number;
+  teammates: Player[];
+  opponents: Player[];
+  teamScore: number;
+  opponentScore: number;
+  won: boolean;
+  isShowdown: boolean;
+  showdownInitiatedByPlayerTeam: boolean;
+  courtNumber: number | null;
+}
+
 /**
  * Notification types for user feedback
  */

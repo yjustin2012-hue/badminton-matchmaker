@@ -262,9 +262,9 @@ export default function RostersPage() {
       {showLoadWarning && (
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
           <div className="bg-white rounded-lg shadow-lg max-w-md w-full p-6 space-y-4">
-            <h3 className="text-xl font-bold text-gray-800">Load Roster?</h3>
+            <h3 className="text-xl font-bold text-gray-800">{t('court.loadRosterConfirmTitle')}</h3>
             <p className="text-sm text-gray-600">
-              Loading a new roster will clear all pending matches and reset player stats. Continue?
+              {t('court.loadRosterConfirmDesc')}
             </p>
 
             <div className="flex flex-col gap-3">
@@ -272,7 +272,7 @@ export default function RostersPage() {
                 onClick={handleConfirmLoadRoster}
                 className="w-full px-4 py-2 bg-blue-600 text-white rounded font-semibold hover:bg-blue-700"
               >
-                Load Roster
+                {t('rosters.load')}
               </button>
               <button
                 onClick={() => {

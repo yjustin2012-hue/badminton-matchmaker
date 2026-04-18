@@ -47,15 +47,16 @@ export function calculateRankings(
     wins: player.wins,
     losses: player.losses,
     winPercentage: calculateWinPercentage(player.wins, player.losses),
+    rankScore: player.rankScore ?? 0,
     totalPointsScored: player.totalPointsScored ?? 0,
     available: player.available,
     dueUp: calculateDueUpStatus(player, avgMatches, config.dueUpThreshold),
     lastPlayedAt: player.lastPlayedTime,
   }));
 
-  // Sort: win% desc → total points desc (high-sample tiebreaker) → matches played desc → name asc
+  // Sort: rank score desc → total pts desc → matches played desc → name asc
   rankings.sort((a, b) => {
-    if (a.winPercentage !== b.winPercentage) return b.winPercentage - a.winPercentage;
+    if (a.rankScore !== b.rankScore) return b.rankScore - a.rankScore;
     if (a.totalPointsScored !== b.totalPointsScored) return b.totalPointsScored - a.totalPointsScored;
     if (a.matchesPlayed !== b.matchesPlayed) return b.matchesPlayed - a.matchesPlayed;
     return a.playerName.localeCompare(b.playerName);

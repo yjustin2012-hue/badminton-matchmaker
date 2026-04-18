@@ -10,6 +10,7 @@ export interface SnapshotRanking {
   wins: number;
   losses: number;
   winPercentage: number;
+  totalPointsScored?: number;
 }
 
 export interface SnapshotMatch {

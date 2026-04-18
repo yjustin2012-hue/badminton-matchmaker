@@ -31,11 +31,18 @@ interface SessionContextType {
   togglePlayerAvailability: (id: string) => Promise<void>;
   loadPresetPlayers: (presetId: string) => Promise<void>;
   setPlayerPreferredPartner: (playerId: string, partnerId: string | null) => Promise<void>;
+  setPlayerColor: (playerId: string, color: string | null) => Promise<void>;
+  setPlayerDoNotPair: (playerId: string, targetId: string | null) => Promise<void>;
 
   // Match operations
   generateMatch: () => Promise<void>;
   completeMatch: (matchId: string, teamAScore: number, teamBScore: number) => Promise<void>;
   deleteMatch: (matchId: string) => Promise<void>;
+  assignMatchToCourt: (matchId: string, courtNumber: number | null) => Promise<void>;
+  setMatchTargetCourt: (matchId: string, targetCourtNumber: number | null) => Promise<void>;
+  toggleShowdownMode: (matchId: string) => Promise<void>;
+  setShowdownInitiatorTeam: (matchId: string, team: 'A' | 'B' | null) => Promise<void>;
+  createManualMatch: (teamAIds: [string, string], teamBIds: [string, string]) => Promise<void>;
 
   // Session operations
   startOver: () => Promise<void>;
@@ -124,6 +131,7 @@ export function SessionProvider({ children }: SessionProviderProps) {
           matchesPlayed: 0,
           wins: 0,
           losses: 0,
+          rankScore: 0,
           totalPointsScored: 0,
           recentMatchIds: [],
           createdAt: Date.now(),
@@ -203,6 +211,48 @@ export function SessionProvider({ children }: SessionProviderProps) {
     []
   );
 
+  const setPlayerColor = useCallback(
+    async (playerId: string, color: string | null) => {
+      try {
+        await DB.updatePlayer(playerId, { color: color ?? undefined });
+        setPlayers((prev) =>
+          prev.map((p) => (p.id === playerId ? { ...p, color: color ?? undefined } : p))
+        );
+      } catch (err) {
+        const message = err instanceof Error ? err.message : 'Failed to set player color';
+        setError(message);
+        throw err;
+      }
+    },
+    []
+  );
+
+  const setPlayerDoNotPair = useCallback(
+    async (playerId: string, targetId: string | null) => {
+      try {
+        const player = players.find((p) => p.id === playerId);
+        if (!player) return;
+        let updated: string[];
+        if (targetId === null) {
+          updated = [];
+        } else if (player.doNotPairWithIds?.includes(targetId)) {
+          updated = (player.doNotPairWithIds ?? []).filter((id) => id !== targetId);
+        } else {
+          updated = [...(player.doNotPairWithIds ?? []), targetId];
+        }
+        await DB.updatePlayer(playerId, { doNotPairWithIds: updated });
+        setPlayers((prev) =>
+          prev.map((p) => (p.id === playerId ? { ...p, doNotPairWithIds: updated } : p))
+        );
+      } catch (err) {
+        const message = err instanceof Error ? err.message : 'Failed to set do-not-pair';
+        setError(message);
+        throw err;
+      }
+    },
+    [players]
+  );
+
   const loadPresetPlayers = useCallback(
     async (presetId: string) => {
       try {
@@ -215,10 +265,12 @@ export function SessionProvider({ children }: SessionProviderProps) {
         const newPlayers = preset.players.map((p): Types.Player => ({
           id: generateUUID(),
           name: p.name,
+          color: p.color,
           available: true,
           matchesPlayed: 0,
           wins: 0,
           losses: 0,
+          rankScore: 0,
           totalPointsScored: 0,
           recentMatchIds: [],
           createdAt: Date.now(),
@@ -278,13 +330,17 @@ export function SessionProvider({ children }: SessionProviderProps) {
         }
       }
 
-      let result = Matchmaking.generateMatch(eligibleFiltered);
+      let result = Matchmaking.generateMatch(eligibleFiltered, {
+        balanceTeamsByRankScore: settings.balanceTeamsByRankScore ?? false,
+      });
 
       // If can't generate from non-pending, try allowing pending (if setting allows)
       if (result.error && settings.ignorePendingMatchesForGeneration) {
         // Combine available players with pending ones
         eligibleFiltered = available;
-        result = Matchmaking.generateMatch(eligibleFiltered);
+        result = Matchmaking.generateMatch(eligibleFiltered, {
+          balanceTeamsByRankScore: settings.balanceTeamsByRankScore ?? false,
+        });
       }
 
       if (result.error) {
@@ -300,6 +356,61 @@ export function SessionProvider({ children }: SessionProviderProps) {
       }
 
       const match = result.match!;
+
+      // Auto-assign to an empty court if court view is enabled
+      if (settings.courtViewEnabled) {
+        const occupiedCourts = new Set(
+          pendingMatches.filter((m) => m.courtNumber != null).map((m) => m.courtNumber!)
+        );
+        let assignedCourt: number | null = null;
+        for (let i = 1; i <= (settings.numberOfCourts || 2); i++) {
+          if (!occupiedCourts.has(i)) {
+            assignedCourt = i;
+            break;
+          }
+        }
+
+        if (assignedCourt !== null) {
+          // Empty court found — assign directly
+          match.courtNumber = assignedCourt;
+          match.courtAssignedAt = Date.now();
+          match.targetCourtNumber = null;
+        } else if (settings.strictCourtAutoFill) {
+          // Strict mode: queue the match and designate the court with the fewest
+          // pending matches already targeted at it.
+          match.courtNumber = null;
+          match.courtAssignedAt = null;
+          const numCourts = settings.numberOfCourts || 2;
+          const queuedPerCourt = new Map<number, number>();
+          for (let i = 1; i <= numCourts; i++) queuedPerCourt.set(i, 0);
+          for (const m of pendingMatches) {
+            if (m.courtNumber == null && m.targetCourtNumber != null) {
+              queuedPerCourt.set(m.targetCourtNumber, (queuedPerCourt.get(m.targetCourtNumber) ?? 0) + 1);
+            }
+          }
+          // Pick the court with the lowest queue count; break ties by lowest court number
+          let targetCourt = 1;
+          let minQueue = Infinity;
+          for (let i = 1; i <= numCourts; i++) {
+            const count = queuedPerCourt.get(i) ?? 0;
+            if (count < minQueue) {
+              minQueue = count;
+              targetCourt = i;
+            }
+          }
+          match.targetCourtNumber = targetCourt;
+        } else {
+          // Relaxed mode: queue without a designated court
+          match.courtNumber = null;
+          match.courtAssignedAt = null;
+          match.targetCourtNumber = null;
+        }
+      } else {
+        match.courtNumber = null;
+        match.courtAssignedAt = null;
+        match.targetCourtNumber = null;
+      }
+
       await DB.addMatch(match);
       setPendingMatches((prev) => [...prev, match]);
       setError(null);
@@ -318,24 +429,30 @@ export function SessionProvider({ children }: SessionProviderProps) {
         const match = await DB.getMatch(matchId);
         if (!match) throw new Error('Match not found after completion');
 
-        // Update player stats
         const winnerAndLoser = Stats.getWinnerAndLoserIds(match);
         if (!winnerAndLoser) throw new Error('Could not determine match winner');
 
-        const getPlayerScore = (id: string) =>
-          match.teamA.playerIds.includes(id)
-            ? (match.teamAScore ?? 0)
-            : (match.teamBScore ?? 0);
+        const allPlayerIds = [...winnerAndLoser.winnerIds, ...winnerAndLoser.loserIds];
+        for (const playerId of allPlayerIds) {
+          const p = await DB.getPlayer(playerId);
+          if (!p) continue;
+          const updatedPlayer = Stats.applyCompletedMatchToPlayer(p, match, {
+            showdownWinBonus: settings?.showdownWinBonus ?? 3,
+            showdownLossDeduction: settings?.showdownLossDeduction ?? 1,
+          });
 
-        for (const winnerId of winnerAndLoser.winnerIds) {
-          await DB.updatePlayerStats(winnerId, matchId, true, getPlayerScore(winnerId));
+          await DB.updatePlayer(playerId, {
+            matchesPlayed: updatedPlayer.matchesPlayed,
+            wins: updatedPlayer.wins,
+            losses: updatedPlayer.losses,
+            rankScore: updatedPlayer.rankScore,
+            totalPointsScored: updatedPlayer.totalPointsScored,
+            recentMatchIds: updatedPlayer.recentMatchIds,
+            lastPlayedTime: updatedPlayer.lastPlayedTime,
+            updatedAt: updatedPlayer.updatedAt,
+          });
         }
 
-        for (const loserId of winnerAndLoser.loserIds) {
-          await DB.updatePlayerStats(loserId, matchId, false, getPlayerScore(loserId));
-        }
-
-        // Reload data
         const [loadedPlayers, loadedPending, loadedCompleted] = await Promise.all([
           DB.getAllPlayers(),
           DB.getPendingMatches(),
@@ -352,7 +469,7 @@ export function SessionProvider({ children }: SessionProviderProps) {
         throw err;
       }
     },
-    []
+    [settings]
   );
 
   const deleteMatch = useCallback(
@@ -368,6 +485,159 @@ export function SessionProvider({ children }: SessionProviderProps) {
       }
     },
     []
+  );
+
+  const assignMatchToCourt = useCallback(
+    async (matchId: string, courtNumber: number | null) => {
+      try {
+        const match = await DB.getMatch(matchId);
+        if (!match) throw new Error('Match not found');
+
+        const nextAssignedAt =
+          courtNumber == null
+            ? null
+            : match.courtNumber == null
+              ? Date.now()
+              : match.courtAssignedAt ?? Date.now();
+
+        await DB.updateMatch(matchId, { courtNumber, courtAssignedAt: nextAssignedAt });
+        setPendingMatches((prev) =>
+          prev.map((m) =>
+            m.id === matchId ? { ...m, courtNumber, courtAssignedAt: nextAssignedAt } : m
+          )
+        );
+        setError(null);
+      } catch (err) {
+        const message = err instanceof Error ? err.message : 'Failed to assign court';
+        setError(message);
+        throw err;
+      }
+    },
+    []
+  );
+
+  const setMatchTargetCourt = useCallback(
+    async (matchId: string, targetCourtNumber: number | null) => {
+      try {
+        await DB.updateMatch(matchId, { targetCourtNumber });
+        setPendingMatches((prev) =>
+          prev.map((m) => (m.id === matchId ? { ...m, targetCourtNumber } : m))
+        );
+        setError(null);
+      } catch (err) {
+        const message = err instanceof Error ? err.message : 'Failed to set target court';
+        setError(message);
+        throw err;
+      }
+    },
+    []
+  );
+
+  const toggleShowdownMode = useCallback(async (matchId: string) => {
+    try {
+      const match = await DB.getMatch(matchId);
+      if (!match) return;
+      const newVal = !match.isShowdown;
+      // When turning on, default initiator to Team A; when turning off, clear it
+      const initiator = newVal ? 'A' : null;
+      await DB.updateMatch(matchId, {
+        isShowdown: newVal,
+        showdownInitiatorTeam: initiator,
+      });
+      setPendingMatches((prev) =>
+        prev.map((m) =>
+          m.id === matchId
+            ? { ...m, isShowdown: newVal, showdownInitiatorTeam: initiator }
+            : m
+        )
+      );
+    } catch (err) {
+      const message = err instanceof Error ? err.message : 'Failed to toggle showdown';
+      setError(message);
+      throw err;
+    }
+  }, []);
+
+  const setShowdownInitiatorTeam = useCallback(
+    async (matchId: string, team: 'A' | 'B' | null) => {
+      try {
+        await DB.updateMatch(matchId, { showdownInitiatorTeam: team });
+        setPendingMatches((prev) =>
+          prev.map((m) => (m.id === matchId ? { ...m, showdownInitiatorTeam: team } : m))
+        );
+      } catch (err) {
+        const message = err instanceof Error ? err.message : 'Failed to set showdown initiator';
+        setError(message);
+        throw err;
+      }
+    },
+    []
+  );
+
+  const createManualMatch = useCallback(
+    async (teamAIds: [string, string], teamBIds: [string, string]) => {
+      try {
+        const match: Types.Match = {
+          id: generateUUID(),
+          teamA: { playerIds: teamAIds },
+          teamB: { playerIds: teamBIds },
+          status: 'pending',
+          createdAt: Date.now(),
+          updatedAt: Date.now(),
+          courtNumber: null,
+          courtAssignedAt: null,
+          targetCourtNumber: null,
+        };
+
+        if (settings.courtViewEnabled) {
+          const occupiedCourts = new Set(
+            pendingMatches.filter((m) => m.courtNumber != null).map((m) => m.courtNumber!)
+          );
+          let assignedCourt: number | null = null;
+          for (let i = 1; i <= (settings.numberOfCourts || 2); i++) {
+            if (!occupiedCourts.has(i)) {
+              assignedCourt = i;
+              break;
+            }
+          }
+
+          if (assignedCourt !== null) {
+            match.courtNumber = assignedCourt;
+            match.courtAssignedAt = Date.now();
+            match.targetCourtNumber = null;
+          } else if (settings.strictCourtAutoFill) {
+            match.courtNumber = null;
+            match.courtAssignedAt = null;
+            const numCourts = settings.numberOfCourts || 2;
+            const queuedPerCourt = new Map<number, number>();
+            for (let i = 1; i <= numCourts; i++) queuedPerCourt.set(i, 0);
+            for (const m of pendingMatches) {
+              if (m.courtNumber == null && m.targetCourtNumber != null) {
+                queuedPerCourt.set(m.targetCourtNumber, (queuedPerCourt.get(m.targetCourtNumber) ?? 0) + 1);
+              }
+            }
+            let targetCourt = 1;
+            let minQueue = Infinity;
+            for (let i = 1; i <= numCourts; i++) {
+              const count = queuedPerCourt.get(i) ?? 0;
+              if (count < minQueue) { minQueue = count; targetCourt = i; }
+            }
+            match.targetCourtNumber = targetCourt;
+          } else {
+            match.courtAssignedAt = null;
+          }
+        }
+
+        await DB.addMatch(match);
+        setPendingMatches((prev) => [...prev, match]);
+        setError(null);
+      } catch (err) {
+        const message = err instanceof Error ? err.message : 'Failed to create match';
+        setError(message);
+        throw err;
+      }
+    },
+    [settings, pendingMatches]
   );
 
   // Session operations
@@ -406,6 +676,7 @@ export function SessionProvider({ children }: SessionProviderProps) {
             wins: p.wins,
             losses: p.losses,
             winPercentage,
+            totalPointsScored: p.totalPointsScored,
           };
         });
 
@@ -472,6 +743,7 @@ export function SessionProvider({ children }: SessionProviderProps) {
           players: players.map((p) => ({
             id: p.id,
             name: p.name,
+            color: p.color,
           })),
           createdAt: Date.now(),
           updatedAt: Date.now(),
@@ -497,6 +769,7 @@ export function SessionProvider({ children }: SessionProviderProps) {
           players: players.map((p) => ({
             id: p.id,
             name: p.name,
+            color: p.color,
           })),
           updatedAt: Date.now(),
         });
@@ -622,9 +895,16 @@ export function SessionProvider({ children }: SessionProviderProps) {
     togglePlayerAvailability,
     loadPresetPlayers,
     setPlayerPreferredPartner,
+    setPlayerColor,
+    setPlayerDoNotPair,
     generateMatch,
     completeMatch,
     deleteMatch,
+    assignMatchToCourt,
+    setMatchTargetCourt,
+    toggleShowdownMode,
+    setShowdownInitiatorTeam,
+    createManualMatch,
     startOver,
     saveSnapshot,
     undoLastMatch,

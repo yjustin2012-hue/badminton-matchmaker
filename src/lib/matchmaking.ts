@@ -9,6 +9,10 @@
 import * as Types from '../types';
 import { generateUUID } from './uuid';
 
+interface MatchmakingOptions {
+  balanceTeamsByRankScore?: boolean;
+}
+
 /**
  * Calculate average matches played across all players
  */
@@ -139,11 +143,34 @@ function scorePairPreferences(teamA: Types.Player[], teamB: Types.Player[]): num
 }
 
 /**
+ * Count do-not-pair violations in a proposed team split.
+ * Returns the number of (player, teammate) pairs where player has teammate in doNotPairWithIds.
+ */
+function countDoNotPairViolations(teamA: Types.Player[], teamB: Types.Player[]): number {
+  let violations = 0;
+  for (const team of [teamA, teamB]) {
+    const [p0, p1] = team;
+    if (p0.doNotPairWithIds?.includes(p1.id)) violations++;
+    if (p1.doNotPairWithIds?.includes(p0.id)) violations++;
+  }
+  return violations;
+}
+
+function getRankScoreDifference(teamA: Types.Player[], teamB: Types.Player[]): number {
+  const teamAScore = teamA.reduce((sum, player) => sum + (player.rankScore ?? 0), 0);
+  const teamBScore = teamB.reduce((sum, player) => sum + (player.rankScore ?? 0), 0);
+  return Math.abs(teamAScore - teamBScore);
+}
+
+/**
  * Create a match from selected players.
  * Tries all 3 possible team splits and picks the one that best satisfies
  * pair preferences. Ties are broken randomly for variety.
  */
-export function createMatchFromPlayers(players: Types.Player[]): Types.Match {
+export function createMatchFromPlayers(
+  players: Types.Player[],
+  options: MatchmakingOptions = {}
+): Types.Match {
   if (players.length !== 4) {
     throw new Error('Must have exactly 4 players to create a match');
   }
@@ -159,11 +186,26 @@ export function createMatchFromPlayers(players: Types.Player[]): Types.Match {
   ];
 
   // Pick the split that satisfies the most pair preferences.
+  // Among splits with equal preferences, prefer fewest do-not-pair violations.
   // shuffleArray on splits ensures random tiebreaking.
   const shuffledSplits = shuffleArray(splits);
-  const [bestTeamA, bestTeamB] = shuffledSplits.reduce((best, curr) =>
-    scorePairPreferences(curr[0], curr[1]) > scorePairPreferences(best[0], best[1]) ? curr : best
-  );
+  const [bestTeamA, bestTeamB] = shuffledSplits.reduce((best, curr) => {
+    const bestViols = countDoNotPairViolations(best[0], best[1]);
+    const currViols = countDoNotPairViolations(curr[0], curr[1]);
+    if (currViols !== bestViols) return currViols < bestViols ? curr : best;
+
+    const bestPref = scorePairPreferences(best[0], best[1]);
+    const currPref = scorePairPreferences(curr[0], curr[1]);
+    if (currPref !== bestPref) return currPref > bestPref ? curr : best;
+
+    if (options.balanceTeamsByRankScore) {
+      const bestDiff = getRankScoreDifference(best[0], best[1]);
+      const currDiff = getRankScoreDifference(curr[0], curr[1]);
+      if (currDiff !== bestDiff) return currDiff < bestDiff ? curr : best;
+    }
+
+    return best;
+  });
 
   const teamA: Types.Match['teamA'] = {
     playerIds: [bestTeamA[0].id, bestTeamA[1].id] as [string, string],
@@ -190,7 +232,8 @@ export function createMatchFromPlayers(players: Types.Player[]): Types.Match {
  * Returns match or error reason
  */
 export function generateMatch(
-  eligiblePlayers: Types.Player[]
+  eligiblePlayers: Types.Player[],
+  options: MatchmakingOptions = {}
 ): { match: Types.Match; error?: undefined } | { match?: undefined; error: string } {
   // Check minimum players requirement
   if (eligiblePlayers.length < 4) {
@@ -209,7 +252,7 @@ export function generateMatch(
   }
 
   // Create match from selected players
-  const match = createMatchFromPlayers(selected);
+  const match = createMatchFromPlayers(selected, options);
 
   return { match };
 }

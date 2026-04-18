@@ -22,6 +22,11 @@ export interface Match {
   createdAt: number;
   completedAt?: number; // Only set when status === 'completed'
   updatedAt: number;
+  courtNumber?: number | null; // 1-indexed court assignment; null = queued (unassigned)
+  courtAssignedAt?: number | null; // Timestamp when the match was placed on a court
+  targetCourtNumber?: number | null; // Pre-designated court for strict auto-fill mode
+  isShowdown?: boolean; // High-stakes mode
+  showdownInitiatorTeam?: 'A' | 'B' | null; // Which team chose to initiate showdown mode
 }
 
 /**

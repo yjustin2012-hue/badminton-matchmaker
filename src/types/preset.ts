@@ -7,6 +7,7 @@ export interface PresetPlayer {
   // Simplified player data for preset (no session stats)
   id: string;
   name: string;
+  color?: string;
 }
 
 export interface Preset {
